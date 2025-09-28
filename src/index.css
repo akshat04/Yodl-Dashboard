@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* YODL Design System - All colors, gradients, fonts, etc defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* YODL Brand Colors */
+    --background: 0 0% 100%;
+    --foreground: 154 71% 6%; /* #041C18 converted to HSL */
+
+    --card: 0 0% 100%;
+    --card-foreground: 154 71% 6%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 154 71% 6%;
+
+    /* YODL Primary - Dark Green #041C18 */
+    --primary: 154 71% 6%;
+    --primary-foreground: 0 0% 98%;
+
+    /* YODL Secondary - Green #18423E */
+    --secondary: 172 47% 18%;
+    --secondary-foreground: 0 0% 98%;
+
+    /* YODL Accent - Purple #794E89 */
+    --accent: 288 27% 42%;
+    --accent-foreground: 0 0% 98%;
+
+    /* YODL Light Green #A3E0A3 */
+    --success: 120 47% 76%;
+    --success-foreground: 154 71% 6%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 154 71% 6%;
+
+    --radius: 0.75rem;
+
+    /* YODL Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(154 71% 6%), hsl(172 47% 18%));
+    --gradient-accent: linear-gradient(135deg, hsl(288 27% 42%), hsl(154 71% 6%));
+    --gradient-success: linear-gradient(135deg, hsl(120 47% 76%), hsl(172 47% 18%));
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    /* Shadows */
+    --shadow-elegant: 0 10px 30px -10px hsl(154 71% 6% / 0.3);
+    --shadow-glow: 0 0 40px hsl(120 47% 76% / 0.4);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 154 71% 6%;
+    --sidebar-primary: 154 71% 6%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 172 47% 18%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 154 71% 6%;
+  }
+
+  .dark {
+    /* YODL Dark Theme */
+    --background: 154 71% 6%; /* Dark Green Background */
+    --foreground: 120 47% 76%; /* Light Green Text */
+
+    --card: 172 47% 18%; /* Secondary Green for cards */
+    --card-foreground: 120 47% 76%;
+
+    --popover: 172 47% 18%;
+    --popover-foreground: 120 47% 76%;
+
+    --primary: 120 47% 76%; /* Light Green primary in dark mode */
+    --primary-foreground: 154 71% 6%;
+
+    --secondary: 288 27% 42%; /* Purple secondary */
+    --secondary-foreground: 120 47% 76%;
+
+    --muted: 172 47% 18%;
+    --muted-foreground: 120 30% 60%;
+
+    --accent: 288 27% 42%;
+    --accent-foreground: 120 47% 76%;
+
+    --success: 120 47% 76%;
+    --success-foreground: 154 71% 6%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 120 47% 76%;
+
+    --border: 172 47% 18%;
+    --input: 172 47% 18%;
+    --ring: 120 47% 76%;
+
+    --sidebar-background: 154 71% 6%;
+    --sidebar-foreground: 120 47% 76%;
+    --sidebar-primary: 120 47% 76%;
+    --sidebar-primary-foreground: 154 71% 6%;
+    --sidebar-accent: 172 47% 18%;
+    --sidebar-accent-foreground: 120 47% 76%;
+    --sidebar-border: 172 47% 18%;
+    --sidebar-ring: 120 47% 76%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
