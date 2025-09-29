@@ -99,51 +99,86 @@ export default function OperatorDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">
-              {hasRole('curator') ? 'CURATOR DASHBOARD' : 'OPERATOR DASHBOARD'}
-            </h1>
-            <div className="flex items-center gap-2">
-              <p className="text-muted-foreground">Welcome back, {profile?.full_name}</p>
-              <Badge variant={hasRole('curator') ? 'default' : 'secondary'}>
-                {hasRole('curator') ? 'Curator' : 'Operator'}
-              </Badge>
+      {/* Hero Section */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent opacity-95"></div>
+        <div className="relative container mx-auto px-4 md:px-6 py-8 md:py-16">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between mb-8">
+              <div className="text-primary-foreground">
+                <Badge variant="secondary" className="mb-4 bg-success/20 text-success-foreground border-success/30">
+                  {hasRole('curator') ? 'Curator Portal' : 'Operator Portal'}
+                </Badge>
+                <h1 className="text-2xl md:text-4xl font-bold mb-2">
+                  {hasRole('curator') ? 'CURATOR DASHBOARD' : 'OPERATOR DASHBOARD'}
+                </h1>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <p className="text-primary-foreground/80 text-base md:text-lg">Welcome back, {profile?.full_name}</p>
+                  <Badge variant={hasRole('curator') ? 'default' : 'secondary'} className="bg-success/20 text-success-foreground border-success/30 w-fit">
+                    {hasRole('curator') ? 'Curator' : 'Operator'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/historical')}
+                  className="flex items-center gap-2 border-foreground/20 text-foreground bg-background hover:bg-accent hover:text-accent-foreground"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Historical Data</span>
+                  <span className="sm:hidden">Historical</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={signOut} 
+                  className="flex items-center gap-2 border-foreground/20 text-foreground bg-background hover:bg-accent hover:text-accent-foreground"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Operator Widgets - Only visible to operators */}
+              {!hasRole('curator') && (
+                <div className="space-y-8">
+                  {operatorSlides.map((slide, index) => (
+                    <div key={index} className="border-2 border-accent/30 bg-card/95 backdrop-blur-sm rounded-lg p-4 md:p-6 hover:border-accent/50 transition-all duration-300 hover:shadow-xl">
+                      <h2 className="text-xl md:text-2xl font-bold text-card-foreground mb-4 md:mb-6">{slide.title}</h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+                        {slide.widgets}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Curator Widgets - Only visible to curators */}
+              {hasRole('curator') && (
+                <div className="space-y-8">
+                  {curatorSlides.map((slide, index) => (
+                    <div key={index} className="border-2 border-success/30 bg-card/95 backdrop-blur-sm rounded-lg p-4 md:p-6 hover:border-success/50 transition-all duration-300 hover:shadow-xl">
+                      <h2 className="text-xl md:text-2xl font-bold text-card-foreground mb-4 md:mb-6">{slide.title}</h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
+                        {slide.widgets}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/historical')}
-              className="flex items-center gap-2"
-            >
-              <BarChart3 className="h-4 w-4" />
-              Historical Data
-            </Button>
-            <Button variant="outline" onClick={signOut} className="flex items-center gap-2">
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </Button>
-          </div>
         </div>
-        
-        <div className="space-y-6">
-          {/* Operator Widgets - Only visible to operators */}
-          {!hasRole('curator') && (
-            <div>
-              <WidgetCarousel slides={operatorSlides} />
-            </div>
-          )}
-          
-          {/* Curator Widgets - Only visible to curators */}
-          {hasRole('curator') && (
-            <div>
-              <WidgetCarousel slides={curatorSlides} />
-            </div>
-          )}
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border/20 py-8">
+        <div className="container mx-auto px-6 text-center text-muted-foreground">
+          <p>&copy; 2025 Yodl. Yield Orchestration & Distribution Layer.</p>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

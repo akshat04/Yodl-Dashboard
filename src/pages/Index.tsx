@@ -66,14 +66,25 @@ const Index = () => {
                       <span>Risk Monitoring</span>
                     </div>
                   </div>
-                  <Button 
-                    className="w-full bg-success text-success-foreground hover:bg-success/90 group-hover:scale-105 transition-all duration-300"
-                    size="lg"
-                    onClick={() => navigate('/auth')}
-                  >
-                    {user ? 'Go to Dashboard' : 'Login as Curator'}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                   <div className="space-y-3">
+                     <Button 
+                       className="w-full bg-success text-success-foreground hover:bg-success/90 group-hover:scale-105 transition-all duration-300"
+                       size="lg"
+                       onClick={() => navigate('/auth')}
+                     >
+                       {user ? 'Go to Dashboard' : 'Login as Curator'}
+                       <ArrowRight className="ml-2 h-4 w-4" />
+                     </Button>
+                     <Button 
+                       variant="outline"
+                       className="w-full border-success/30 text-success hover:bg-success/10 group-hover:scale-105 transition-all duration-300"
+                       size="lg"
+                       onClick={() => navigate('/auth')}
+                     >
+                       Sign up as Curator
+                       <ArrowRight className="ml-2 h-4 w-4" />
+                     </Button>
+                   </div>
                 </CardContent>
               </Card>
 
@@ -103,14 +114,25 @@ const Index = () => {
                       <span>Stake Management</span>
                     </div>
                   </div>
-                  <Button 
-                    className="w-full bg-accent text-accent-foreground hover:bg-accent/90 group-hover:scale-105 transition-all duration-300"
-                    size="lg"
-                    onClick={() => navigate('/auth')}
-                  >
-                    {user ? 'Go to Dashboard' : 'Login as Operator'}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                   <div className="space-y-3">
+                     <Button 
+                       className="w-full bg-accent text-accent-foreground hover:bg-accent/90 group-hover:scale-105 transition-all duration-300"
+                       size="lg"
+                       onClick={() => navigate('/auth')}
+                     >
+                       {user ? 'Go to Dashboard' : 'Login as Operator'}
+                       <ArrowRight className="ml-2 h-4 w-4" />
+                     </Button>
+                     <Button 
+                       variant="outline"
+                       className="w-full border-accent/30 text-accent hover:bg-accent/10 group-hover:scale-105 transition-all duration-300"
+                       size="lg"
+                       onClick={() => navigate('/auth')}
+                     >
+                       Sign up as Operator
+                       <ArrowRight className="ml-2 h-4 w-4" />
+                     </Button>
+                   </div>
                 </CardContent>
               </Card>
             </div>

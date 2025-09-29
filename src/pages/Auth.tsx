@@ -182,159 +182,177 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Welcome
-          </Button>
+    <div className="min-h-screen bg-background">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent opacity-95"></div>
+        <div className="relative container mx-auto px-6 py-24">
+          <div className="max-w-md mx-auto">
+            <div className="flex justify-center mb-6">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2 border-primary-foreground/20 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Welcome
+              </Button>
+            </div>
+            
+            <Card className="w-full border-2 border-accent/30 bg-card/95 backdrop-blur-sm">
+              <CardHeader className="text-center">
+                <Badge variant="secondary" className="mb-4 bg-success/20 text-success-foreground border-success/30 mx-auto w-fit">
+                  {isLogin ? 'Sign In' : 'Join Yodl'}
+                </Badge>
+                <CardTitle className="text-2xl font-bold">
+                  {isLogin ? 'Welcome Back' : 'Create Account'}
+                </CardTitle>
+                <p className="text-muted-foreground">
+                  {isLogin ? 'Sign in to your account' : 'Sign up as an operator or curator'}
+                </p>
+              </CardHeader>
+            <CardContent>
+              <Tabs value={isLogin ? 'login' : 'signup'} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6 h-auto p-1 bg-card/50 backdrop-blur-sm border border-border/20">
+                  <TabsTrigger 
+                    value="login" 
+                    onClick={() => setIsLogin(true)}
+                    className="data-[state=active]:bg-accent/20 data-[state=active]:text-accent-foreground"
+                  >
+                    Login
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="signup" 
+                    onClick={() => setIsLogin(false)}
+                    className="data-[state=active]:bg-success/20 data-[state=active]:text-success-foreground"
+                  >
+                    Sign Up
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="login" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      className={errors.email ? 'border-destructive' : ''}
+                    />
+                    {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Enter your password"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                      className={errors.password ? 'border-destructive' : ''}
+                    />
+                    {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                  </div>
+
+                  <Button 
+                    onClick={handleLogin} 
+                    disabled={loading}
+                    className="w-full bg-success text-success-foreground hover:bg-success/90"
+                  >
+                    {loading ? 'Signing In...' : 'Sign In'}
+                  </Button>
+                </TabsContent>
+
+                <TabsContent value="signup" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      placeholder="Enter your full name"
+                      value={formData.fullName}
+                      onChange={(e) => handleInputChange('fullName', e.target.value)}
+                      className={errors.fullName ? 'border-destructive' : ''}
+                    />
+                    {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      className={errors.email ? 'border-destructive' : ''}
+                    />
+                    {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Create a password"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                      className={errors.password ? 'border-destructive' : ''}
+                    />
+                    {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Role</Label>
+                    <Select
+                      value={formData.role}
+                      onValueChange={(value) => handleInputChange('role', value)}
+                    >
+                      <SelectTrigger className={errors.role ? 'border-destructive' : ''}>
+                        <SelectValue placeholder="Select your role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="operator">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="bg-accent/20 text-accent-foreground border-accent/30">Operator</Badge>
+                            <span>Manage operator data</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="curator">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default" className="bg-success/20 text-success-foreground border-success/30">Curator</Badge>
+                            <span>Full access & management</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {errors.role && <p className="text-sm text-destructive">{errors.role}</p>}
+                  </div>
+
+                  <Button 
+                    onClick={handleSignup} 
+                    disabled={loading}
+                    className="w-full bg-success text-success-foreground hover:bg-success/90"
+                  >
+                    {loading ? 'Creating Account...' : 'Create Account'}
+                  </Button>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+          </div>
         </div>
-        
-        <Card className="w-full">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">
-              {isLogin ? 'Welcome Back' : 'Create Account'}
-            </CardTitle>
-            <p className="text-muted-foreground">
-              {isLogin ? 'Sign in to your account' : 'Sign up as an operator or curator'}
-            </p>
-          </CardHeader>
-        <CardContent>
-          <Tabs value={isLogin ? 'login' : 'signup'} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger 
-                value="login" 
-                onClick={() => setIsLogin(true)}
-              >
-                Login
-              </TabsTrigger>
-              <TabsTrigger 
-                value="signup" 
-                onClick={() => setIsLogin(false)}
-              >
-                Sign Up
-              </TabsTrigger>
-            </TabsList>
+      </section>
 
-            <TabsContent value="login" className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={errors.email ? 'border-destructive' : ''}
-                />
-                {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={errors.password ? 'border-destructive' : ''}
-                />
-                {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-              </div>
-
-              <Button 
-                onClick={handleLogin} 
-                disabled={loading}
-                className="w-full"
-              >
-                {loading ? 'Signing In...' : 'Sign In'}
-              </Button>
-            </TabsContent>
-
-            <TabsContent value="signup" className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  placeholder="Enter your full name"
-                  value={formData.fullName}
-                  onChange={(e) => handleInputChange('fullName', e.target.value)}
-                  className={errors.fullName ? 'border-destructive' : ''}
-                />
-                {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={errors.email ? 'border-destructive' : ''}
-                />
-                {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Create a password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={errors.password ? 'border-destructive' : ''}
-                />
-                {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => handleInputChange('role', value)}
-                >
-                  <SelectTrigger className={errors.role ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="operator">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">Operator</Badge>
-                        <span>Manage operator data</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="curator">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="default">Curator</Badge>
-                        <span>Full access & management</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.role && <p className="text-sm text-destructive">{errors.role}</p>}
-              </div>
-
-              <Button 
-                onClick={handleSignup} 
-                disabled={loading}
-                className="w-full"
-              >
-                {loading ? 'Creating Account...' : 'Create Account'}
-              </Button>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-      </div>
+      {/* Footer */}
+      <footer className="border-t border-border/20 py-4">
+        <div className="container mx-auto px-6 text-center text-muted-foreground">
+          <p>&copy; 2025 Yodl. Yield Orchestration & Distribution Layer.</p>
+        </div>
+      </footer>
     </div>
   );
 }
