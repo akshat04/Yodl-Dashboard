@@ -6,34 +6,70 @@ import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// Curator Historical Charts
+import { AmountDelegatedPerVaultChart } from "@/historical/curator/AmountDelegatedPerVaultChart";
+import { VaultsDelegatedChart } from "@/historical/curator/VaultsDelegatedChart";
+import { CumulativeFeeEarnedChart } from "@/historical/curator/CumulativeFeeEarnedChart";
+import { FeeClaimedByCuratorChart } from "@/historical/curator/FeeClaimedByCuratorChart";
+import { FeeBreakupByTokenChart } from "@/historical/curator/FeeBreakupByTokenChart";
+import { DelegationPerformanceChart } from "@/historical/curator/DelegationPerformanceChart";
+import { ChallengesRaisedChart } from "@/historical/curator/ChallengesRaisedChart";
+import { ChallengeAmountClaimedChart } from "@/historical/curator/ChallengeAmountClaimedChart";
+import { FallbackImpactChart } from "@/historical/curator/FallbackImpactChart";
+import { AverageRebalancingTimeChart } from "@/historical/curator/AverageRebalancingTimeChart";
+
+// Operator Historical Charts - Performance & Earnings
+import { ProfitEarnedWidget } from "@/historical/operator/ProfitEarnedWidget";
+import { FeeAPRGaugeWidget } from "@/historical/operator/FeeAPRGaugeWidget";
+import { FeeTransferred1InchWidget } from "@/historical/operator/FeeTransferred1InchWidget";
+import { FeeEarnedPerBatchChart } from "@/historical/operator/FeeEarnedPerBatchChart";
+import { CumulativeFeeEarnedChart as OperatorCumulativeFeeEarnedChart } from "@/historical/operator/CumulativeFeeEarnedChart";
+import { FeeClaimedChart } from "@/historical/operator/FeeClaimedChart";
+import { FeeBreakupByTokenChart as OperatorFeeBreakupByTokenChart } from "@/historical/operator/FeeBreakupByTokenChart";
+
+// Operator Historical Charts - Quotes, Trades & Rebalancing
+import { QuotesSubmittedChart } from "@/historical/operator/QuotesSubmittedChart";
+import { QuotesAcceptedChart } from "@/historical/operator/QuotesAcceptedChart";
+import { QuoteAcceptanceRateChart } from "@/historical/operator/QuoteAcceptanceRateChart";
+import { QuoteAcceptancePerBatchChart } from "@/historical/operator/QuoteAcceptancePerBatchChart";
+import { CoWCloseTimeHistogram } from "@/historical/operator/CoWCloseTimeHistogram";
+import { CoWCloseTimePerBatchChart } from "@/historical/operator/CoWCloseTimePerBatchChart";
+import { CoWPercentagePerBatchChart } from "@/historical/operator/CoWPercentagePerBatchChart";
+import { FallbackTradesChart } from "@/historical/operator/FallbackTradesChart";
+import { FallbackSwapPercentageChart } from "@/historical/operator/FallbackSwapPercentageChart";
+import { RebalancingTimeChart } from "@/historical/operator/RebalancingTimeChart";
+import { YodlConsumedChart } from "@/historical/operator/YodlConsumedChart";
+
+// Operator Historical Charts - Risks, Costs & Challenges
+import { SlippagePaidChart } from "@/historical/operator/SlippagePaidChart";
+import { GasPaidChart } from "@/historical/operator/GasPaidChart";
+import { DEXFeePaidChart } from "@/historical/operator/DEXFeePaidChart";
+import { FallbackTypesChart } from "@/historical/operator/FallbackTypesChart";
+import { ChallengesRaisedOperatorChart } from "@/historical/operator/ChallengesRaisedOperatorChart";
+import { ChallengeAmountClaimedOperatorChart } from "@/historical/operator/ChallengeAmountClaimedOperatorChart";
+
 export default function HistoricalData() {
   const { profile, hasRole, signOut } = useAuth();
   const navigate = useNavigate();
 
   const operatorHistoricalSections = [
     {
-      title: "Quote Limit Usage History",
-      description: "Track your quota utilization patterns over time",
+      title: "Performance & Earnings",
+      description: "Track profit, fees, and APR performance over time",
       icon: <TrendingUp className="h-5 w-5" />,
-      content: "Historical data showing how your quote limits have been utilized across different time periods."
+      content: "Historical data showing profit earned, fee APR, transfers to 1Inch, and earnings breakdown by token and batch."
     },
     {
-      title: "Delegation History",
-      description: "View changes in delegated amounts and token distributions",
+      title: "Quotes, Trades & Rebalancing Activity", 
+      description: "Monitor quote acceptance rates and trading performance",
       icon: <BarChart3 className="h-5 w-5" />,
-      content: "Complete history of delegation changes, including token amounts and USD values over time."
+      content: "Complete history of quotes submitted/accepted, CoW closing times, fallback trades, and rebalancing event timelines."
     },
     {
-      title: "Fee Collection History",
-      description: "Track all claimed and unclaimed fees",
+      title: "Risks, Costs & Challenges",
+      description: "Analyze slippage, gas costs, and challenge events",
       icon: <PieChart className="h-5 w-5" />,
-      content: "Historical record of fee collections, claims, and pending amounts across all time periods."
-    },
-    {
-      title: "Pre-Slashing Events",
-      description: "Historical record of pre-slashing activities",
-      icon: <Calendar className="h-5 w-5" />,
-      content: "Complete timeline of pre-slashing events, amounts, and their impact on your operations."
+      content: "Historical record of slippage paid, gas costs, DEX fees, fallback types, and challenges raised across time periods."
     }
   ];
 
@@ -97,57 +133,206 @@ export default function HistoricalData() {
           </Button>
         </div>
 
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
+        <Tabs defaultValue={hasRole('curator') ? "analytics" : "performance"} className="w-full">
+          <TabsList className={`grid w-full ${hasRole('curator') ? 'grid-cols-3' : 'grid-cols-4'}`}>
+            {hasRole('curator') ? (
+              <>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                <TabsTrigger value="reports">Reports</TabsTrigger>
+              </>
+            ) : (
+              <>
+                <TabsTrigger value="performance">Performance & Earnings</TabsTrigger>
+                <TabsTrigger value="trading">Quotes, Trades & Rebalancing</TabsTrigger>
+                <TabsTrigger value="risks">Risks, Costs & Challenges</TabsTrigger>
+                <TabsTrigger value="reports">Reports</TabsTrigger>
+              </>
+            )}
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              {sections.map((section, index) => (
-                <Card key={index} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                        {section.icon}
+          {hasRole('curator') && (
+            <TabsContent value="overview" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {sections.map((section, index) => (
+                  <Card key={index} className="hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                          {section.icon}
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{section.title}</CardTitle>
+                          <CardDescription>{section.description}</CardDescription>
+                        </div>
                       </div>
-                      <div>
-                        <CardTitle className="text-lg">{section.title}</CardTitle>
-                        <CardDescription>{section.description}</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {section.content}
-                    </p>
-                    <Button variant="outline" size="sm">
-                      View Details
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {section.content}
+                      </p>
+                      <Button variant="outline" size="sm">
+                        View Details
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          )}
+
+          {/* Performance & Earnings Tab for Operators */}
+          <TabsContent value="performance" className="space-y-6">
+            <div className="space-y-8">
+              <div className="grid gap-6 md:grid-cols-2">
+                <ProfitEarnedWidget />
+                <FeeAPRGaugeWidget />
+              </div>
+              
+              <div className="grid gap-6">
+                <FeeTransferred1InchWidget />
+              </div>
+              
+              <div className="grid gap-6">
+                <FeeEarnedPerBatchChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <OperatorCumulativeFeeEarnedChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <FeeClaimedChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <OperatorFeeBreakupByTokenChart />
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Quotes, Trades & Rebalancing Tab for Operators */}
+          <TabsContent value="trading" className="space-y-6">
+            <div className="space-y-8">
+              <div className="grid gap-6">
+                <QuotesSubmittedChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <QuotesAcceptedChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <QuoteAcceptanceRateChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <QuoteAcceptancePerBatchChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <CoWCloseTimeHistogram />
+              </div>
+              
+              <div className="grid gap-6">
+                <CoWCloseTimePerBatchChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <CoWPercentagePerBatchChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <FallbackTradesChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <FallbackSwapPercentageChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <RebalancingTimeChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <YodlConsumedChart />
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Risks, Costs & Challenges Tab for Operators */}
+          <TabsContent value="risks" className="space-y-6">
+            <div className="space-y-8">
+              <div className="grid gap-6">
+                <SlippagePaidChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <GasPaidChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <DEXFeePaidChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <FallbackTypesChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <ChallengesRaisedOperatorChart />
+              </div>
+              
+              <div className="grid gap-6">
+                <ChallengeAmountClaimedOperatorChart />
+              </div>
             </div>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Advanced Analytics</CardTitle>
-                <CardDescription>
-                  Deep dive into historical patterns and trends
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Advanced analytics charts and visualizations will be displayed here</p>
-                  <p className="text-sm mt-2">Including time-series data, trend analysis, and comparative metrics</p>
+            {hasRole('curator') && (
+              <div className="space-y-8">
+                <div className="grid gap-6">
+                  <AmountDelegatedPerVaultChart />
                 </div>
-              </CardContent>
-            </Card>
+                
+                <div className="grid gap-6">
+                  <VaultsDelegatedChart />
+                </div>
+                
+                <div className="grid gap-6">
+                  <CumulativeFeeEarnedChart />
+                </div>
+                
+                <div className="grid gap-6">
+                  <FeeClaimedByCuratorChart />
+                </div>
+                
+                <div className="grid gap-6">
+                  <FeeBreakupByTokenChart />
+                </div>
+                
+                <div className="grid gap-6">
+                  <DelegationPerformanceChart />
+                </div>
+                
+                <div className="grid gap-6">
+                  <ChallengesRaisedChart />
+                </div>
+                
+                <div className="grid gap-6">
+                  <ChallengeAmountClaimedChart />
+                </div>
+                
+                <div className="grid gap-6">
+                  <FallbackImpactChart />
+                </div>
+                
+                <div className="grid gap-6">
+                  <AverageRebalancingTimeChart />
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-6">
