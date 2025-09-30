@@ -71,14 +71,14 @@ All colors MUST be HSL.
 
   .dark {
     /* YODL Dark Theme */
-    --background: 154 71% 6%; /* Dark Green Background */
+    --background: 154 50% 15%; /* Dark Green Background (was almost black) */
     --foreground: 120 47% 76%; /* Light Green Text */
 
-    --card: 172 47% 18%; /* Secondary Green for cards */
-    --card-foreground: 120 47% 76%;
+    --card: 120 50% 88%; /* Very Light Green for cards */
+    --card-foreground: 154 71% 6%;
 
-    --popover: 172 47% 18%;
-    --popover-foreground: 120 47% 76%;
+    --popover: 120 50% 88%;
+    --popover-foreground: 154 71% 6%;
 
     --primary: 120 47% 76%; /* Light Green primary in dark mode */
     --primary-foreground: 154 71% 6%;
@@ -86,8 +86,8 @@ All colors MUST be HSL.
     --secondary: 288 27% 42%; /* Purple secondary */
     --secondary-foreground: 120 47% 76%;
 
-    --muted: 172 47% 18%;
-    --muted-foreground: 120 30% 60%;
+    --muted: 120 40% 75%;
+    --muted-foreground: 154 71% 6%;
 
     --accent: 288 27% 42%;
     --accent-foreground: 120 47% 76%;
@@ -98,17 +98,17 @@ All colors MUST be HSL.
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 120 47% 76%;
 
-    --border: 172 47% 18%;
-    --input: 172 47% 18%;
+    --border: 120 40% 70%;
+    --input: 120 50% 88%;
     --ring: 120 47% 76%;
 
-    --sidebar-background: 154 71% 6%;
+    --sidebar-background: 154 50% 15%;
     --sidebar-foreground: 120 47% 76%;
     --sidebar-primary: 120 47% 76%;
     --sidebar-primary-foreground: 154 71% 6%;
-    --sidebar-accent: 172 47% 18%;
-    --sidebar-accent-foreground: 120 47% 76%;
-    --sidebar-border: 172 47% 18%;
+    --sidebar-accent: 120 50% 88%;
+    --sidebar-accent-foreground: 154 71% 6%;
+    --sidebar-border: 120 40% 70%;
     --sidebar-ring: 120 47% 76%;
   }
 }
