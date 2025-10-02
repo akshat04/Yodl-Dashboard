@@ -1,185 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { z } from 'zod';
-import { ArrowLeft } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, Shield, TrendingUp, Users, DollarSign } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import yodlLogo from "@/assets/yodl-logo.png";
 
-const authSchema = z.object({
-  email: z.string().trim().email({ message: 'Invalid email address' }).max(255),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-  fullName: z.string().trim().min(2, { message: 'Full name must be at least 2 characters' }).max(100),
-  role: z.enum(['operator', 'curator'], { message: 'Please select a role' })
-});
-
-export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    fullName: '',
-    role: 'operator' as 'operator' | 'curator'
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+const Index = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-
-  useEffect(() => {
-    // Check if user is already logged in
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate('/dashboard');
-      }
-    };
-    checkAuth();
-  }, [navigate]);
-
-  const validateForm = () => {
-    try {
-      if (isLogin) {
-        authSchema.pick({ email: true, password: true }).parse(formData);
-      } else {
-        authSchema.parse(formData);
-      }
-      setErrors({});
-      return true;
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const newErrors: Record<string, string> = {};
-        error.errors.forEach((err) => {
-          if (err.path[0]) {
-            newErrors[err.path[0] as string] = err.message;
-          }
-        });
-        setErrors(newErrors);
-      }
-      return false;
-    }
-  };
-
-  const handleLogin = async () => {
-    if (!validateForm()) return;
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: 'Invalid email or password. Please check your credentials.',
-          });
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: error.message,
-          });
-        }
-        return;
-      }
-
-      toast({
-        title: 'Welcome back!',
-        description: 'You have been successfully logged in.',
-      });
-      navigate('/dashboard');
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Login Failed',
-        description: 'An unexpected error occurred. Please try again.',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignup = async () => {
-    if (!validateForm()) return;
-
-    setLoading(true);
-    try {
-      const redirectUrl = `${window.location.origin}/dashboard`;
-      
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            full_name: formData.fullName,
-          }
-        }
-      });
-
-      if (error) {
-        if (error.message.includes('User already registered')) {
-          toast({
-            variant: 'destructive',
-            title: 'Signup Failed',
-            description: 'An account with this email already exists. Please try logging in instead.',
-          });
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Signup Failed',
-            description: error.message,
-          });
-        }
-        return;
-      }
-
-      if (data.user) {
-        // Assign role to the user
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({
-            user_id: data.user.id,
-            role: formData.role
-          });
-
-        if (roleError) {
-          console.error('Error assigning role:', roleError);
-        }
-
-        toast({
-          title: 'Account Created!',
-          description: 'Please check your email to confirm your account.',
-        });
-        setIsLogin(true);
-      }
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Signup Failed',
-        description: 'An unexpected error occurred. Please try again.',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
+  const { user, hasRole } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -187,172 +16,157 @@ export default function Auth() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent opacity-95"></div>
         <div className="relative container mx-auto px-6 py-24">
-          <div className="max-w-md mx-auto">
-            <div className="flex justify-center mb-6">
-              <Button
-                variant="outline"
-                onClick={() => navigate('/')}
-                className="flex items-center gap-2 border-primary-foreground/20 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Welcome
-              </Button>
+          <div className="max-w-4xl mx-auto text-center text-primary-foreground">
+            <Badge variant="secondary" className="mb-6 bg-success/20 text-success-foreground border-success/30">
+              Yield Orchestration & Distribution Layer
+            </Badge>
+            
+            <div className="flex items-center justify-center mb-6">
+              <img src={yodlLogo} alt="Yodl Logo" className="h-16 w-auto" />
             </div>
             
-            <Card className="w-full border-2 border-accent/30 bg-card/95 backdrop-blur-sm">
-              <CardHeader className="text-center">
-                <Badge variant="secondary" className="mb-4 bg-success/20 text-success-foreground border-success/30 mx-auto w-fit">
-                  {isLogin ? 'Sign In' : 'Join Yodl'}
-                </Badge>
-                <CardTitle className="text-2xl font-bold">
-                  {isLogin ? 'Welcome Back' : 'Create Account'}
-                </CardTitle>
-                <p className="text-muted-foreground">
-                  {isLogin ? 'Sign in to your account' : 'Sign up as an operator or curator'}
-                </p>
-              </CardHeader>
-            <CardContent>
-              <Tabs value={isLogin ? 'login' : 'signup'} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6 h-auto p-1 bg-card/50 backdrop-blur-sm border border-border/20">
-                  <TabsTrigger 
-                    value="login" 
-                    onClick={() => setIsLogin(true)}
-                    className="data-[state=active]:bg-accent/20 data-[state=active]:text-accent-foreground"
-                  >
-                    Login
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="signup" 
-                    onClick={() => setIsLogin(false)}
-                    className="data-[state=active]:bg-success/20 data-[state=active]:text-success-foreground"
-                  >
-                    Sign Up
-                  </TabsTrigger>
-                </TabsList>
+            <p className="text-xl md:text-2xl mb-4 text-primary-foreground/90 font-medium">
+              DON'T JUST HODL.
+            </p>
+            
+            <p className="text-3xl md:text-4xl font-bold mb-8 text-success">
+              Yodl.
+            </p>
+            
+            <p className="text-lg md:text-xl mb-12 text-primary-foreground/80 max-w-3xl mx-auto leading-relaxed">
+              Principal-protected yield on capital already committed to other protocols. 
+              Choose your role to access the dashboard.
+            </p>
 
-                <TabsContent value="login" className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={errors.email ? 'border-destructive' : ''}
-                    />
-                    {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+            {/* Login Cards */}
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+              {/* Curator Login */}
+              <Card className="border-2 border-success/30 bg-card/95 backdrop-blur-sm hover:border-success/50 transition-all duration-300 hover:shadow-xl group">
+                <CardHeader className="text-center pb-4">
+                  <div className="mx-auto mb-4 p-4 bg-success/20 rounded-full w-fit">
+                    <Shield className="h-8 w-8 text-success" />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Enter your password"
-                      value={formData.password}
-                      onChange={(e) => handleInputChange('password', e.target.value)}
-                      className={errors.password ? 'border-destructive' : ''}
-                    />
-                    {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                  <CardTitle className="text-2xl font-bold text-card-foreground">Curator Dashboard</CardTitle>
+                  <CardDescription className="text-base text-muted-foreground">
+                    Manage collateral and authorize operator access
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-3">
+                      <DollarSign className="h-4 w-4 text-success" />
+                      <span>Collateral Management</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <TrendingUp className="h-4 w-4 text-success" />
+                      <span>Yield Analytics</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Shield className="h-4 w-4 text-success" />
+                      <span>Risk Monitoring</span>
+                    </div>
                   </div>
+                   <div className="space-y-3">
+                     <Button 
+                       className="w-full bg-success text-success-foreground hover:bg-success/90 group-hover:scale-105 transition-all duration-300"
+                       size="lg"
+                       onClick={() => navigate(user && hasRole('curator') ? '/dashboard' : '/auth')}
+                     >
+                       {user && hasRole('curator') ? 'Go to Dashboard' : 'Login as Curator'}
+                       <ArrowRight className="ml-2 h-4 w-4" />
+                     </Button>
+                     <Button 
+                       variant="outline"
+                       className="w-full border-success/30 text-success hover:bg-success/10 group-hover:scale-105 transition-all duration-300"
+                       size="lg"
+                       onClick={() => navigate('/auth')}
+                     >
+                       Sign up as Curator
+                       <ArrowRight className="ml-2 h-4 w-4" />
+                     </Button>
+                   </div>
+                </CardContent>
+              </Card>
 
-                  <Button 
-                    onClick={handleLogin} 
-                    disabled={loading}
-                    className="w-full bg-success text-success-foreground hover:bg-success/90"
-                  >
-                    {loading ? 'Signing In...' : 'Sign In'}
-                  </Button>
-                </TabsContent>
-
-                <TabsContent value="signup" className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      placeholder="Enter your full name"
-                      value={formData.fullName}
-                      onChange={(e) => handleInputChange('fullName', e.target.value)}
-                      className={errors.fullName ? 'border-destructive' : ''}
-                    />
-                    {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
+              {/* Operator Login */}
+              <Card className="border-2 border-accent/30 bg-card/95 backdrop-blur-sm hover:border-accent/50 transition-all duration-300 hover:shadow-xl group">
+                <CardHeader className="text-center pb-4">
+                  <div className="mx-auto mb-4 p-4 bg-accent/20 rounded-full w-fit">
+                    <Users className="h-8 w-8 text-accent" />
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={errors.email ? 'border-destructive' : ''}
-                    />
-                    {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                  <CardTitle className="text-2xl font-bold text-card-foreground">Operator Dashboard</CardTitle>
+                  <CardDescription className="text-base text-muted-foreground">
+                    Construct CoW cycles and manage executions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-3">
+                      <TrendingUp className="h-4 w-4 text-accent" />
+                      <span>CoW Cycle Construction</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <DollarSign className="h-4 w-4 text-accent" />
+                      <span>Trade Execution</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Shield className="h-4 w-4 text-accent" />
+                      <span>Stake Management</span>
+                    </div>
                   </div>
+                   <div className="space-y-3">
+                     <Button 
+                       className="w-full bg-accent text-accent-foreground hover:bg-accent/90 group-hover:scale-105 transition-all duration-300"
+                       size="lg"
+                       onClick={() => navigate(user && hasRole('operator') ? '/dashboard' : '/auth')}
+                     >
+                       {user && hasRole('operator') ? 'Go to Dashboard' : 'Login as Operator'}
+                       <ArrowRight className="ml-2 h-4 w-4" />
+                     </Button>
+                     <Button 
+                       variant="outline"
+                       className="w-full border-accent/30 text-accent hover:bg-accent/10 group-hover:scale-105 transition-all duration-300"
+                       size="lg"
+                       onClick={() => navigate('/auth')}
+                     >
+                       Sign up as Operator
+                       <ArrowRight className="ml-2 h-4 w-4" />
+                     </Button>
+                   </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Create a password"
-                      value={formData.password}
-                      onChange={(e) => handleInputChange('password', e.target.value)}
-                      className={errors.password ? 'border-destructive' : ''}
-                    />
-                    {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={(value) => handleInputChange('role', value)}
-                    >
-                      <SelectTrigger className={errors.role ? 'border-destructive' : ''}>
-                        <SelectValue placeholder="Select your role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="operator">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="bg-accent/20 text-accent-foreground border-accent/30">Operator</Badge>
-                            <span>Manage operator data</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="curator">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="default" className="bg-success/20 text-success-foreground border-success/30">Curator</Badge>
-                            <span>Full access & management</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {errors.role && <p className="text-sm text-destructive">{errors.role}</p>}
-                  </div>
-
-                  <Button 
-                    onClick={handleSignup} 
-                    disabled={loading}
-                    className="w-full bg-success text-success-foreground hover:bg-success/90"
-                  >
-                    {loading ? 'Creating Account...' : 'Create Account'}
-                  </Button>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+            {/* Features Section */}
+            <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-primary-foreground/80">
+              <div className="text-center">
+                <Shield className="h-12 w-12 mx-auto mb-4 text-success" />
+                <h3 className="font-semibold text-lg mb-2">Principal Protected</h3>
+                <p className="text-sm">Multi-tier protection through operator stake slashing and coverage reserves</p>
+              </div>
+              <div className="text-center">
+                <TrendingUp className="h-12 w-12 mx-auto mb-4 text-success" />
+                <h3 className="font-semibold text-lg mb-2">Yield Optimization</h3>
+                <p className="text-sm">Earn yield on capital already committed to AMMs, lending, and restaking</p>
+              </div>
+              <div className="text-center">
+                <Users className="h-12 w-12 mx-auto mb-4 text-success" />
+                <h3 className="font-semibold text-lg mb-2">Coordination Layer</h3>
+                <p className="text-sm">Operators construct Coincidence of Wants cycles from DEX aggregator flow</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/20 py-4">
+      <footer className="bg-background border-t border-border/20 py-8">
         <div className="container mx-auto px-6 text-center text-muted-foreground">
           <p>&copy; 2025 Yodl. Yield Orchestration & Distribution Layer.</p>
         </div>
       </footer>
     </div>
   );
-}
+};
+
+export default Index;

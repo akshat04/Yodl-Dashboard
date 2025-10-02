@@ -5,6 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { DollarSign, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import usdcLogo from "@/assets/tokens/usdc.png";
+import usdtLogo from "@/assets/tokens/usdt.png";
+import daiLogo from "@/assets/tokens/dai.png";
+import wethLogo from "@/assets/tokens/weth.png";
 
 interface UnclaimedFee {
   id: string;
@@ -22,6 +26,13 @@ interface ClaimFeeTabProps {
 export function ClaimFeeTab({ unclaimedFees, setUnclaimedFees }: ClaimFeeTabProps) {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  const tokenLogos: Record<string, string> = {
+    USDC: usdcLogo,
+    USDT: usdtLogo,
+    DAI: daiLogo,
+    WETH: wethLogo,
+  };
 
   useEffect(() => {
     // Only fetch if fees haven't been loaded yet
@@ -122,13 +133,17 @@ export function ClaimFeeTab({ unclaimedFees, setUnclaimedFees }: ClaimFeeTabProp
                 className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="font-bold text-primary">{fee.token_symbol.substring(0, 2)}</span>
+                  <div className="h-12 w-12 rounded-full bg-background border-2 border-border flex items-center justify-center overflow-hidden">
+                    <img 
+                      src={tokenLogos[fee.token_symbol]} 
+                      alt={fee.token_symbol}
+                      className="h-10 w-10 object-contain"
+                    />
                   </div>
                   <div>
                     <p className="font-medium text-lg">{fee.token_symbol}</p>
                     <p className="text-sm text-muted-foreground">
-                      {fee.amount.toLocaleString()} tokens
+                      {fee.amount.toLocaleString()} {fee.token_symbol}
                     </p>
                   </div>
                 </div>

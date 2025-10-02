@@ -178,11 +178,6 @@ export function ChallengeTab() {
                       <p className="text-sm text-muted-foreground">
                         Challenge ID: {challenge.challenge_id || 'N/A'}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant={challenge.is_overdue ? 'destructive' : 'outline'}>
-                          {formatDueDate(challenge.due_date)}
-                        </Badge>
-                      </div>
                     </div>
                   </div>
                   <div className="text-right">
