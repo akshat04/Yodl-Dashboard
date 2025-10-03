@@ -478,6 +478,15 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
   };
 
   const handleRebalance = (vault: VaultRebalance) => {
+    // Start the timer for this specific vault
+    setVaultTimers(prev => {
+      // Don't add duplicate timers
+      if (prev.some(t => t.vaultId === vault.id)) {
+        return prev;
+      }
+      return [...prev, { vaultId: vault.id, countdown: 600, isActive: true }];
+    });
+
     toast({
       title: "Rebalance Initiated",
       description: `Rebalancing ${vault.curator_name}: ${vault.maker_token} Vault`,
@@ -497,6 +506,13 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
     }
     const timerA = getVaultTimer(a.id);
     const timerB = getVaultTimer(b.id);
+    
+    // Both have active timers - sort by remaining time (least time first)
+    if (timerA?.isActive && timerB?.isActive) {
+      return timerA.countdown - timerB.countdown;
+    }
+    
+    // Active timers come before inactive
     if (timerA?.isActive && !timerB?.isActive) return -1;
     if (!timerA?.isActive && timerB?.isActive) return 1;
     return 0;
@@ -553,7 +569,7 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                     </div>
 
                     {/* Right Side - Badges */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       {needsRebalancing(vault) && (
                         <Badge variant="destructive" className="whitespace-nowrap">
                           Rebalancing Requested
