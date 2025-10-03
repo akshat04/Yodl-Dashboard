@@ -4,9 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { DollarSign, Shield, Wallet, ArrowRight, ExternalLink } from "lucide-react";
+import { Shield, Wallet, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// Reserve Tab Component
 
 interface YodlBalance {
   id: string;
@@ -14,6 +23,11 @@ interface YodlBalance {
   balance: number;
   usd_value: number;
   operator: { name: string };
+  curator_name: string;
+  maker_token: string;
+  total_pre_slashed: number;
+  total_slashable: number;
+  isSlashing?: boolean;
 }
 
 interface PreSlashedData {
@@ -34,54 +48,163 @@ interface DelegationData {
   token_type: string;
 }
 
-interface EscrowTransaction {
+interface VaultData {
   id: string;
-  transaction_hash: string | null;
-  status: string;
-  amount: number;
-  created_at: string;
+  vault_name: string;
+  maker_token: string;
+  escrow_amount: number;
+  orchestrator_balance: number;
+  total_pre_slashed: number;
 }
 
-interface EscrowTokenBalance {
+interface EscrowToken {
   id: string;
   token_symbol: string;
   amount: number;
   usd_value: number;
+  isListed: boolean;
 }
 
-export function ReserveTab() {
+
+interface ReserveTabProps {
+  sharedVaults?: SharedVaultData[];
+  onVaultsUpdate?: (vaults: SharedVaultData[]) => void;
+}
+
+interface SharedVaultData {
+  id: string;
+  vault_name: string;
+  maker_token: string;
+  escrow_amount: number;
+  orchestrator_balance: number;
+  total_pre_slashed: number;
+}
+
+export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
   const [yodlBalances, setYodlBalances] = useState<YodlBalance[]>([]);
   const [preSlashedData, setPreSlashedData] = useState<PreSlashedData[]>([]);
   const [delegations, setDelegations] = useState<DelegationData[]>([]);
-  const [escrowTransactions, setEscrowTransactions] = useState<EscrowTransaction[]>([]);
-  const [escrowTokenBalances, setEscrowTokenBalances] = useState<EscrowTokenBalance[]>([]);
+  const [vaults, setVaults] = useState<VaultData[]>([]);
+  const [escrowTokens, setEscrowTokens] = useState<EscrowToken[]>([]);
   const [loading, setLoading] = useState(true);
+  const [slashDialogOpen, setSlashDialogOpen] = useState(false);
+  const [selectedVault, setSelectedVault] = useState<YodlBalance | null>(null);
+  const [slashAmount, setSlashAmount] = useState("");
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [selectedToken, setSelectedToken] = useState<EscrowToken | null>(null);
+  const [selectedRestoreVault, setSelectedRestoreVault] = useState<string>("");
+  const [restoreAmount, setRestoreAmount] = useState("");
+  const [swapDialogOpen, setSwapDialogOpen] = useState(false);
+  const [swapSelectedToken, setSwapSelectedToken] = useState<EscrowToken | null>(null);
+  const [swapSelectedVaultTokens, setSwapSelectedVaultTokens] = useState<string[]>([]);
+  const [swapTargetVault, setSwapTargetVault] = useState<string>("");
+  const [swapAmount, setSwapAmount] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     fetchData();
   }, []);
 
+  // Sync with shared vaults from parent
+  useEffect(() => {
+    if (sharedVaults && sharedVaults.length > 0) {
+      setVaults(sharedVaults);
+      setLoading(false); // ensure UI renders immediately when parent provides data
+    }
+  }, [sharedVaults]);
+
+  // Initialize shared vaults in parent when vaults are first loaded
+  useEffect(() => {
+    if (vaults.length > 0 && onVaultsUpdate) {
+      onVaultsUpdate(vaults);
+    }
+  }, [vaults]);
+
   const fetchData = async () => {
     try {
-      const [yodlRes, preSlashedRes, delegationRes, escrowRes] = await Promise.all([
+      setLoading(true);
+      const [yodlRes, preSlashedRes, delegationRes] = await Promise.all([
         supabase.from('yodl_staked_balances').select('*, operator:operators(name)'),
         supabase.from('delegated_vault_pre_slashing').select('*'),
-        supabase.from('operator_delegations').select('*'),
-        supabase.from('fund_escrow_transactions').select('*').order('created_at', { ascending: false }).limit(10)
+        supabase.from('operator_delegations').select('*')
       ]);
+
+      // Token prices for USD conversion
+      const TOKEN_PRICES: Record<string, number> = {
+        'USDC': 1,
+        'USDT': 1,
+        'DAI': 1,
+        'WETH': 4480.49,
+        'WBTC': 120409.15,
+        'BNB': 1131.35,
+        'MATIC': 0.24
+      };
 
       // Use real data or fallback to mock data for demo
       const mockYodlBalances: YodlBalance[] = [
-        { id: '1', operator_id: 'op1', balance: 50000, usd_value: 125000, operator: { name: 'Vault Alpha' } },
-        { id: '2', operator_id: 'op2', balance: 30000, usd_value: 75000, operator: { name: 'Vault Beta' } },
-        { id: '3', operator_id: 'op3', balance: 20000, usd_value: 50000, operator: { name: 'Vault Gamma' } }
+        { 
+          id: '1', 
+          operator_id: 'op1', 
+          balance: 50000, 
+          usd_value: 20000, 
+          operator: { name: 'USDC Vault' },
+          curator_name: 'RE7',
+          maker_token: 'USDC',
+          total_pre_slashed: 20000,
+          total_slashable: 40000
+        },
+        { 
+          id: '2', 
+          operator_id: 'op2', 
+          balance: 30000, 
+          usd_value: 17921.96, 
+          operator: { name: 'WETH Vault' },
+          curator_name: 'CryptoMax',
+          maker_token: 'WETH',
+          total_pre_slashed: 4,
+          total_slashable: 10
+        },
+        { 
+          id: '3', 
+          operator_id: 'op3', 
+          balance: 20000, 
+          usd_value: 20000, 
+          operator: { name: 'DAI Vault' },
+          curator_name: 'VaultGuard',
+          maker_token: 'DAI',
+          total_pre_slashed: 20000,
+          total_slashable: 35000
+        },
+        { 
+          id: '4', 
+          operator_id: 'op4', 
+          balance: 40000, 
+          usd_value: 25000, 
+          operator: { name: 'USDT Vault' },
+          curator_name: 'RE7',
+          maker_token: 'USDT',
+          total_pre_slashed: 25000,
+          total_slashable: 50000
+        },
+        { 
+          id: '5', 
+          operator_id: 'op5', 
+          balance: 15000, 
+          usd_value: 481636.60, 
+          operator: { name: 'WBTC Vault' },
+          curator_name: 'BitKeeper',
+          maker_token: 'WBTC',
+          total_pre_slashed: 4,
+          total_slashable: 10
+        }
       ];
 
       const mockPreSlashedData: PreSlashedData[] = [
-        { id: '1', vault_address: '0x123...abc', vault_name: 'Vault Alpha', utilized_amount: 45000, remaining_amount: 80000, total_allocated: 125000, utilization_percentage: 36 },
-        { id: '2', vault_address: '0x456...def', vault_name: 'Vault Beta', utilized_amount: 30000, remaining_amount: 45000, total_allocated: 75000, utilization_percentage: 40 },
-        { id: '3', vault_address: '0x789...ghi', vault_name: 'Vault Gamma', utilized_amount: 10000, remaining_amount: 40000, total_allocated: 50000, utilization_percentage: 20 }
+        { id: '1', vault_address: '0x1234...5678', vault_name: 'USDC Vault', utilized_amount: 10000, remaining_amount: 10000, total_allocated: 20000, utilization_percentage: 50 },
+        { id: '2', vault_address: '0xabcd...ef12', vault_name: 'WETH Vault', utilized_amount: 19000, remaining_amount: 1000, total_allocated: 20000, utilization_percentage: 95 },
+        { id: '3', vault_address: '0x9876...ba98', vault_name: 'DAI Vault', utilized_amount: 21000, remaining_amount: 0, total_allocated: 20000, utilization_percentage: 100 },
+        { id: '4', vault_address: '0x1111...0000', vault_name: 'USDT Vault', utilized_amount: 10000, remaining_amount: 15000, total_allocated: 25000, utilization_percentage: 40 },
+        { id: '5', vault_address: '0xaaaa...ffff', vault_name: 'WBTC Vault', utilized_amount: 2000, remaining_amount: 6000, total_allocated: 8000, utilization_percentage: 25 }
       ];
 
       const mockDelegations: DelegationData[] = [
@@ -90,72 +213,473 @@ export function ReserveTab() {
         { id: '3', operator_id: 'op3', amount: 10, usd_value: 600000, token_type: 'WBTC' }
       ];
 
-      const mockEscrowTransactions: EscrowTransaction[] = [
-        { id: '1', transaction_hash: '0xabc123...', status: 'pending', amount: 100000, created_at: new Date().toISOString() },
-        { id: '2', transaction_hash: '0xdef456...', status: 'completed', amount: 75000, created_at: new Date(Date.now() - 86400000).toISOString() },
-        { id: '3', transaction_hash: '0xghi789...', status: 'pending', amount: 50000, created_at: new Date(Date.now() - 172800000).toISOString() }
-      ];
-
-      const mockEscrowTokenBalances: EscrowTokenBalance[] = [
-        { id: '1', token_symbol: 'USDC', amount: 850000, usd_value: 850000 },
-        { id: '2', token_symbol: 'WETH', amount: 320, usd_value: 800000 },
-        { id: '3', token_symbol: 'USDT', amount: 600000, usd_value: 600000 },
-        { id: '4', token_symbol: 'DAI', amount: 400000, usd_value: 400000 },
-        { id: '5', token_symbol: 'WBTC', amount: 12, usd_value: 720000 }
-      ];
-
-      setYodlBalances((yodlRes.data && yodlRes.data.length > 0) ? yodlRes.data : mockYodlBalances);
+      setYodlBalances(mockYodlBalances);
       setPreSlashedData((preSlashedRes.data && preSlashedRes.data.length > 0) ? preSlashedRes.data : mockPreSlashedData);
       setDelegations((delegationRes.data && delegationRes.data.length > 0) ? delegationRes.data : mockDelegations);
-      setEscrowTransactions((escrowRes.data && escrowRes.data.length > 0) ? escrowRes.data : mockEscrowTransactions);
-      setEscrowTokenBalances(mockEscrowTokenBalances);
+
+      // Mock vault data for Position Status - must match format: "curator_name: maker_token Vault"
+      const mockVaults: VaultData[] = [
+        { id: '1', vault_name: 'RE7: USDC Vault', maker_token: 'USDC', escrow_amount: 10000, orchestrator_balance: 1000, total_pre_slashed: 20000 },
+        { id: '2', vault_name: 'CryptoMax: WETH Vault', maker_token: 'WETH', escrow_amount: 3, orchestrator_balance: 1, total_pre_slashed: 4 },
+        { id: '3', vault_name: 'VaultGuard: DAI Vault', maker_token: 'DAI', escrow_amount: 21000, orchestrator_balance: 1000, total_pre_slashed: 20000 },
+        { id: '4', vault_name: 'RE7: USDT Vault', maker_token: 'USDT', escrow_amount: 0, orchestrator_balance: 15000, total_pre_slashed: 25000 },
+        { id: '5', vault_name: 'BitKeeper: WBTC Vault', maker_token: 'WBTC', escrow_amount: 3, orchestrator_balance: 1, total_pre_slashed: 4 }
+      ];
+
+      if (!sharedVaults || sharedVaults.length === 0) {
+        setVaults(mockVaults);
+      }
+
+      // Mock escrow tokens
+      const mockEscrowTokens: EscrowToken[] = [
+        { id: '1', token_symbol: 'USDC', amount: 850000, usd_value: 850000, isListed: true },
+        { id: '2', token_symbol: 'WETH', amount: 320, usd_value: 800000, isListed: true },
+        { id: '3', token_symbol: 'USDT', amount: 600000, usd_value: 600000, isListed: true },
+        { id: '4', token_symbol: 'DAI', amount: 400000, usd_value: 400000, isListed: true },
+        { id: '5', token_symbol: 'WBTC', amount: 12, usd_value: 720000, isListed: true },
+        { id: '6', token_symbol: 'BNB', amount: 500, usd_value: 250000, isListed: false },
+        { id: '7', token_symbol: 'MATIC', amount: 150000, usd_value: 180000, isListed: false },
+      ];
+
+      const listedTokens = new Set(mockVaults.map(v => v.maker_token));
+      const tokensWithStatus = mockEscrowTokens.map(token => {
+        const price = TOKEN_PRICES[token.token_symbol] || 1;
+        return {
+          ...token,
+          usd_value: token.amount * price,
+          isListed: listedTokens.has(token.token_symbol)
+        };
+      });
+
+      // Load persisted tokens if available and normalize using current prices and listings
+      const persisted = localStorage.getItem('escrowTokens');
+      let initialTokens = tokensWithStatus;
+      if (persisted) {
+        try {
+          const parsed: EscrowToken[] = JSON.parse(persisted);
+          initialTokens = parsed.map(t => ({
+            ...t,
+            usd_value: (TOKEN_PRICES[t.token_symbol] || 1) * t.amount,
+            isListed: listedTokens.has(t.token_symbol)
+          }));
+        } catch { /* empty */ }
+      }
+
+      setEscrowTokens(initialTokens);
+      localStorage.setItem('escrowTokens', JSON.stringify(initialTokens));
     } catch (error) {
       console.error('Error fetching reserve data:', error);
       // Fallback to mock data on error
       setYodlBalances([
-        { id: '1', operator_id: 'op1', balance: 50000, usd_value: 125000, operator: { name: 'Vault Alpha' } },
-        { id: '2', operator_id: 'op2', balance: 30000, usd_value: 75000, operator: { name: 'Vault Beta' } },
-        { id: '3', operator_id: 'op3', balance: 20000, usd_value: 50000, operator: { name: 'Vault Gamma' } }
+        { 
+          id: '1', 
+          operator_id: 'op1', 
+          balance: 50000, 
+          usd_value: 20000, 
+          operator: { name: 'USDC Vault' },
+          curator_name: 'RE7',
+          maker_token: 'USDC',
+          total_pre_slashed: 20000,
+          total_slashable: 40000
+        },
+        { 
+          id: '2', 
+          operator_id: 'op2', 
+          balance: 30000, 
+          usd_value: 20000, 
+          operator: { name: 'WETH Vault' },
+          curator_name: 'CryptoMax',
+          maker_token: 'WETH',
+          total_pre_slashed: 8,
+          total_slashable: 15
+        },
+        { 
+          id: '3', 
+          operator_id: 'op3', 
+          balance: 20000, 
+          usd_value: 20000, 
+          operator: { name: 'DAI Vault' },
+          curator_name: 'VaultGuard',
+          maker_token: 'DAI',
+          total_pre_slashed: 20000,
+          total_slashable: 35000
+        },
+        { 
+          id: '4', 
+          operator_id: 'op4', 
+          balance: 40000, 
+          usd_value: 25000, 
+          operator: { name: 'USDT Vault' },
+          curator_name: 'RE7',
+          maker_token: 'USDT',
+          total_pre_slashed: 25000,
+          total_slashable: 50000
+        },
+        { 
+          id: '5', 
+          operator_id: 'op5', 
+          balance: 15000, 
+          usd_value: 8000, 
+          operator: { name: 'WBTC Vault' },
+          curator_name: 'BitKeeper',
+          maker_token: 'WBTC',
+          total_pre_slashed: 0.13,
+          total_slashable: 0.25
+        }
       ]);
       setPreSlashedData([
-        { id: '1', vault_address: '0x123...abc', vault_name: 'Vault Alpha', utilized_amount: 45000, remaining_amount: 80000, total_allocated: 125000, utilization_percentage: 36 },
-        { id: '2', vault_address: '0x456...def', vault_name: 'Vault Beta', utilized_amount: 30000, remaining_amount: 45000, total_allocated: 75000, utilization_percentage: 40 },
-        { id: '3', vault_address: '0x789...ghi', vault_name: 'Vault Gamma', utilized_amount: 10000, remaining_amount: 40000, total_allocated: 50000, utilization_percentage: 20 }
+        { id: '1', vault_address: '0x1234...5678', vault_name: 'USDC Vault', utilized_amount: 10000, remaining_amount: 10000, total_allocated: 20000, utilization_percentage: 50 },
+        { id: '2', vault_address: '0xabcd...ef12', vault_name: 'WETH Vault', utilized_amount: 19000, remaining_amount: 1000, total_allocated: 20000, utilization_percentage: 95 },
+        { id: '3', vault_address: '0x9876...ba98', vault_name: 'DAI Vault', utilized_amount: 21000, remaining_amount: 0, total_allocated: 20000, utilization_percentage: 100 },
+        { id: '4', vault_address: '0x1111...0000', vault_name: 'USDT Vault', utilized_amount: 10000, remaining_amount: 15000, total_allocated: 25000, utilization_percentage: 40 },
+        { id: '5', vault_address: '0xaaaa...ffff', vault_name: 'WBTC Vault', utilized_amount: 2000, remaining_amount: 6000, total_allocated: 8000, utilization_percentage: 25 }
       ]);
       setDelegations([
         { id: '1', operator_id: 'op1', amount: 1000000, usd_value: 1000000, token_type: 'USDC' },
         { id: '2', operator_id: 'op2', amount: 500, usd_value: 800000, token_type: 'WETH' },
         { id: '3', operator_id: 'op3', amount: 10, usd_value: 600000, token_type: 'WBTC' }
       ]);
-      setEscrowTransactions([
-        { id: '1', transaction_hash: '0xabc123...', status: 'pending', amount: 100000, created_at: new Date().toISOString() },
-        { id: '2', transaction_hash: '0xdef456...', status: 'completed', amount: 75000, created_at: new Date(Date.now() - 86400000).toISOString() },
-        { id: '3', transaction_hash: '0xghi789...', status: 'pending', amount: 50000, created_at: new Date(Date.now() - 172800000).toISOString() }
-      ]);
-      setEscrowTokenBalances([
-        { id: '1', token_symbol: 'USDC', amount: 850000, usd_value: 850000 },
-        { id: '2', token_symbol: 'WETH', amount: 320, usd_value: 800000 },
-        { id: '3', token_symbol: 'USDT', amount: 600000, usd_value: 600000 },
-        { id: '4', token_symbol: 'DAI', amount: 400000, usd_value: 400000 },
-        { id: '5', token_symbol: 'WBTC', amount: 12, usd_value: 720000 }
-      ]);
+      
+      // Fallback vault data - must match format: "curator_name: maker_token Vault"
+      const mockVaults: VaultData[] = [
+        { id: '1', vault_name: 'RE7: USDC Vault', maker_token: 'USDC', escrow_amount: 10000, orchestrator_balance: 1000, total_pre_slashed: 20000 },
+        { id: '2', vault_name: 'CryptoMax: WETH Vault', maker_token: 'WETH', escrow_amount: 19000, orchestrator_balance: 1000, total_pre_slashed: 20000 }
+      ];
+
+      const mockEscrowTokens: EscrowToken[] = [
+        { id: '1', token_symbol: 'USDC', amount: 850000, usd_value: 850000, isListed: true },
+        { id: '2', token_symbol: 'WETH', amount: 320, usd_value: 800000, isListed: true },
+        { id: '6', token_symbol: 'BNB', amount: 500, usd_value: 250000, isListed: false },
+      ];
+
+      if (!sharedVaults || sharedVaults.length === 0) {
+        setVaults(mockVaults);
+      }
+
+      const listedTokens = new Set(mockVaults.map(v => v.maker_token));
+      const tokensWithStatus = mockEscrowTokens.map(token => {
+        const price = TOKEN_PRICES[token.token_symbol] || 1;
+        return {
+          ...token,
+          usd_value: token.amount * price,
+          isListed: listedTokens.has(token.token_symbol)
+        };
+      });
+      
+      // Load persisted tokens if available and normalize
+      const persisted = localStorage.getItem('escrowTokens');
+      let initialTokens = tokensWithStatus;
+      if (persisted) {
+        try {
+          const parsed: EscrowToken[] = JSON.parse(persisted);
+          initialTokens = parsed.map(t => ({
+            ...t,
+            usd_value: (TOKEN_PRICES[t.token_symbol] || 1) * t.amount,
+            isListed: listedTokens.has(t.token_symbol)
+          }));
+        } catch { /* empty */ }
+      }
+
+      setEscrowTokens(initialTokens);
+      localStorage.setItem('escrowTokens', JSON.stringify(initialTokens));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSlashPreFund = (vaultName: string, amount: number) => {
-    toast({
-      title: "Slash/Pre-Fund",
-      description: `Initiating slash/pre-fund for ${vaultName}: ${amount.toLocaleString()} YODL`,
-    });
+  const handleSlashPreFund = (vault: YodlBalance) => {
+    setSelectedVault(vault);
+    setSlashAmount("");
+    setSlashDialogOpen(true);
   };
 
-  const handleExecuteTransaction = (txHash: string | null) => {
+  const handleSlashSubmit = () => {
+    if (!selectedVault) return;
+    
+    const amount = parseFloat(slashAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const tokenPrice = TOKEN_PRICES[selectedVault.maker_token] || 1;
+    const maxSlashableUsd = (selectedVault.total_slashable - selectedVault.total_pre_slashed) * tokenPrice;
+    
+    if (amount > maxSlashableUsd) {
+      toast({
+        title: "Amount Exceeds Limit",
+        description: `Maximum slashable amount is $${maxSlashableUsd.toLocaleString()}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Update vault balances with animation
+    const updatedYodlBalances = yodlBalances.map(v => 
+      v.id === selectedVault.id 
+        ? { ...v, isSlashing: true }
+        : v
+    );
+
+    setYodlBalances(updatedYodlBalances);
+
+    // Remove animation flag after animation completes
+    setTimeout(() => {
+      setYodlBalances(prev => 
+        prev.map(v => v.id === selectedVault.id ? { ...v, isSlashing: false } : v)
+      );
+    }, 1000);
+
+    const vaultDisplayName = `${selectedVault.curator_name}: ${selectedVault.maker_token} Vault`;
     toast({
-      title: "Execute Transaction",
-      description: `Executing transaction ${txHash?.substring(0, 10)}...`,
+      title: "Slash/Pre-Fund Successful",
+      description: `Slashed $${amount.toLocaleString()} from ${vaultDisplayName}`,
     });
+    
+    setSlashDialogOpen(false);
+    setSlashAmount("");
+  };
+
+  const handleRestore = (token: EscrowToken) => {
+    setSelectedToken(token);
+    setSelectedRestoreVault("");
+    setRestoreAmount("");
+    setRestoreDialogOpen(true);
+  };
+
+  const handleRestoreSubmit = () => {
+    if (!selectedToken || !selectedRestoreVault) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a vault and enter an amount",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const amount = parseFloat(restoreAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Find the selected vault from yodlBalances
+    const vault = yodlBalances.find(v => v.id === selectedRestoreVault);
+    if (!vault) {
+      toast({
+        title: "Vault Not Found",
+        description: "Selected vault not found",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Calculate available capacity in the vault (using data from Active Vaults)
+    const vaultData = vaults.find(v => v.vault_name === `${vault.curator_name}: ${vault.maker_token} Vault`);
+    if (!vaultData) {
+      toast({
+        title: "Vault Data Not Found",
+        description: "Could not find corresponding vault data",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const tokenPrice = TOKEN_PRICES[selectedToken.token_symbol] || 1;
+    const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+    const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
+    const availableCapacityUsd = availableCapacity * vaultTokenPrice;
+
+    // Calculate how much of the selected token we can use (in USD)
+    const selectedTokenUsd = selectedToken.amount * tokenPrice;
+
+    // Check if amount exceeds available capacity
+    if (amount > availableCapacityUsd) {
+      toast({
+        title: "Amount Exceeds Capacity",
+        description: `Maximum restorable amount to this vault is $${availableCapacityUsd.toLocaleString()}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if amount exceeds available escrow balance
+    if (amount > selectedTokenUsd) {
+      toast({
+        title: "Insufficient Escrow Balance",
+        description: `Available escrow balance is $${selectedTokenUsd.toLocaleString()}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Convert amount to target vault's token
+    const tokenQuantityUsed = amount / tokenPrice;
+    const vaultTokenQuantity = amount / vaultTokenPrice;
+
+    // Update escrow token balance and persist
+    const updatedTokens = escrowTokens.map(t =>
+      t.id === selectedToken.id
+        ? { ...t, amount: t.amount - tokenQuantityUsed, usd_value: (t.amount - tokenQuantityUsed) * (TOKEN_PRICES[t.token_symbol] || 1) }
+        : t
+    );
+    setEscrowTokens(updatedTokens);
+    localStorage.setItem('escrowTokens', JSON.stringify(updatedTokens));
+
+    // Update vault orchestrator balance in Active Vaults data and notify parent immediately
+    const updatedVaults = vaults.map(v =>
+      v.id === vaultData.id
+        ? { ...v, orchestrator_balance: v.orchestrator_balance + vaultTokenQuantity }
+        : v
+    );
+    
+    setVaults(updatedVaults);
+    
+    // Notify parent component of vault updates immediately
+    if (onVaultsUpdate) {
+      onVaultsUpdate(updatedVaults);
+    }
+
+    const conversionMessage = selectedToken.token_symbol !== vault.maker_token
+      ? ` (converted from ${tokenQuantityUsed.toFixed(4)} ${selectedToken.token_symbol})`
+      : '';
+
+    toast({
+      title: "Restore Successful",
+      description: `Restored ${vaultTokenQuantity.toFixed(4)} ${vault.maker_token}${conversionMessage} to ${vault.curator_name}: ${vault.maker_token} Vault`,
+    });
+
+    setRestoreDialogOpen(false);
+  };
+
+  const handleSwap = (token: EscrowToken) => {
+    setSwapSelectedToken(token);
+    setSwapSelectedVaultTokens([]);
+    setSwapTargetVault("");
+    setSwapAmount("");
+    setSwapDialogOpen(true);
+  };
+
+  const handleSwapTokenToggle = (tokenSymbol: string) => {
+    setSwapSelectedVaultTokens(prev =>
+      prev.includes(tokenSymbol)
+        ? prev.filter(t => t !== tokenSymbol)
+        : [...prev, tokenSymbol]
+    );
+  };
+
+  const handleSwapSubmit = () => {
+    if (!swapSelectedToken || swapSelectedVaultTokens.length === 0 || !swapTargetVault) {
+      toast({
+        title: "Missing Information",
+        description: "Please select tokens to convert, a target vault, and enter an amount",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const amount = parseFloat(swapAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Find the target vault
+    const targetVault = yodlBalances.find(v => v.id === swapTargetVault);
+    if (!targetVault) {
+      toast({
+        title: "Vault Not Found",
+        description: "Selected vault not found",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const targetVaultData = vaults.find(v => v.vault_name === `${targetVault.curator_name}: ${targetVault.maker_token} Vault`);
+    if (!targetVaultData) {
+      toast({
+        title: "Vault Data Not Found",
+        description: "Could not find corresponding vault data",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Calculate available capacity
+    const vaultTokenPrice = TOKEN_PRICES[targetVault.maker_token] || 1;
+    const availableCapacity = targetVaultData.total_pre_slashed - targetVaultData.orchestrator_balance;
+    const availableCapacityUsd = availableCapacity * vaultTokenPrice;
+
+    if (amount > availableCapacityUsd) {
+      toast({
+        title: "Amount Exceeds Capacity",
+        description: `Maximum restorable amount to this vault is $${availableCapacityUsd.toLocaleString()}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Calculate total available from selected vault tokens
+    const selectedVaultsData = vaults.filter(v => swapSelectedVaultTokens.includes(v.maker_token));
+    const totalAvailableUsd = selectedVaultsData.reduce((sum, v) => {
+      const tokenPrice = TOKEN_PRICES[v.maker_token] || 1;
+      const availableCapacity = v.total_pre_slashed - v.orchestrator_balance;
+      return sum + (availableCapacity * tokenPrice);
+    }, 0);
+
+    if (amount > totalAvailableUsd) {
+      toast({
+        title: "Insufficient Balance",
+        description: `Total available from selected vaults is $${totalAvailableUsd.toLocaleString()}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Update escrow token balance (remove the un-listed token) and persist
+    const unlistedTokenPrice = TOKEN_PRICES[swapSelectedToken.token_symbol] || 1;
+    const tokenQuantityUsed = amount / unlistedTokenPrice;
+    const updatedTokens = escrowTokens.map(t =>
+      t.id === swapSelectedToken.id
+        ? { ...t, amount: t.amount - tokenQuantityUsed, usd_value: (t.amount - tokenQuantityUsed) * (TOKEN_PRICES[t.token_symbol] || 1) }
+        : t
+    );
+    setEscrowTokens(updatedTokens);
+    localStorage.setItem('escrowTokens', JSON.stringify(updatedTokens));
+
+    // Update vault orchestrator balance and notify parent immediately
+    const targetTokenQuantity = amount / vaultTokenPrice;
+    const updatedVaults = vaults.map(v =>
+      v.id === targetVaultData.id
+        ? { ...v, orchestrator_balance: v.orchestrator_balance + targetTokenQuantity, escrow_amount: v.escrow_amount - targetTokenQuantity }
+        : v
+    );
+    
+    setVaults(updatedVaults);
+    
+    // Notify parent component of vault updates immediately
+    if (onVaultsUpdate) {
+      onVaultsUpdate(updatedVaults);
+    }
+
+    toast({
+      title: "Swap & Restore Successful",
+      description: `Swapped ${tokenQuantityUsed.toFixed(4)} ${swapSelectedToken.token_symbol} and restored ${targetTokenQuantity.toFixed(4)} ${targetVault.maker_token} to vault`,
+    });
+
+    setSwapDialogOpen(false);
   };
 
   if (loading) {
@@ -167,19 +691,56 @@ export function ReserveTab() {
     );
   }
 
+  // Token prices for USD conversion
+  const TOKEN_PRICES: Record<string, number> = {
+    'USDC': 1,
+    'USDT': 1,
+    'DAI': 1,
+    'WETH': 4480.49,
+    'WBTC': 120409.15,
+    'BNB': 1131.35,
+    'MATIC': 0.24
+  };
+
   const totalYodlStaked = yodlBalances.reduce((sum, b) => sum + b.balance, 0);
   const totalYodlUsd = yodlBalances.reduce((sum, b) => sum + b.usd_value, 0);
-  const totalSlashed = preSlashedData.reduce((sum, p) => sum + p.utilized_amount, 0);
-  const totalSlashable = totalYodlUsd; // Simplified calculation
+  
+  // Calculate total pre-slashed and total slashable in USD
+  const totalPreSlashedUsd = yodlBalances.reduce((sum, b) => {
+    const price = TOKEN_PRICES[b.maker_token] || 1;
+    return sum + (b.total_pre_slashed * price);
+  }, 0);
+  
+  const totalSlashableUsd = yodlBalances.reduce((sum, b) => {
+    const price = TOKEN_PRICES[b.maker_token] || 1;
+    return sum + (b.total_slashable * price);
+  }, 0);
+
+  // Position Status calculations
+  const totalAssetsSlashed = vaults.reduce((sum, v) => {
+    const price = TOKEN_PRICES[v.maker_token] || 1;
+    return sum + (v.total_pre_slashed * price);
+  }, 0);
+  
+  const totalAssetsInCustody = vaults.reduce((sum, v) => {
+    const price = TOKEN_PRICES[v.maker_token] || 1;
+    return sum + ((v.escrow_amount + v.orchestrator_balance) * price);
+  }, 0);
+  
+  const grossProfitLoss = totalAssetsInCustody - totalAssetsSlashed;
+  const profitLossPercentage = totalAssetsSlashed > 0 ? (grossProfitLoss / totalAssetsSlashed) * 100 : 0;
+  const isProfit = grossProfitLoss >= 0;
+  const numAssetsSlashed = vaults.filter(v => v.total_pre_slashed > 0).length;
+  const numAssetsHeld = new Set(vaults.map(v => v.maker_token)).size;
 
   return (
     <div className="space-y-6">
-      {/* YODL Staked Balance with Slash/Pre-Fund Options */}
+      {/* Vault Reserve Balance with Slash/Pre-Fund Options */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            YODL Staked Balance
+            Vault Reserve Balance
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -189,86 +750,156 @@ export function ReserveTab() {
               <p className="text-2xl font-bold">{totalYodlStaked.toLocaleString()} YODL</p>
               <p className="text-sm text-muted-foreground">${totalYodlUsd.toLocaleString()}</p>
             </div>
-            <div className="p-4 bg-primary/10 rounded-lg">
-              <p className="text-sm text-muted-foreground">Slashable Amount</p>
-              <p className="text-2xl font-bold">${(totalSlashable - totalSlashed).toLocaleString()}</p>
+            <div className="p-4 bg-primary/10 rounded-lg space-y-2">
+              <p className="text-sm text-muted-foreground">Total Pre-Slashed vs Total Slashable</p>
+              <p className="text-lg font-bold">
+                ${totalPreSlashedUsd.toLocaleString()} / ${totalSlashableUsd.toLocaleString()}
+              </p>
+              <Progress value={(totalPreSlashedUsd / totalSlashableUsd) * 100} className="h-2" />
+              <p className="text-xs text-muted-foreground">
+                {((totalPreSlashedUsd / totalSlashableUsd) * 100).toFixed(1)}% Utilized
+              </p>
             </div>
           </div>
 
           <div className="space-y-3">
             {yodlBalances.map((balance) => {
-              const preSlashedForVault = preSlashedData.find(p => p.vault_name === balance.operator.name);
-              const slashableAmount = balance.usd_value - (preSlashedForVault?.utilized_amount || 0);
+              const tokenPrice = TOKEN_PRICES[balance.maker_token] || 1;
+              const preSlashedUsd = balance.total_pre_slashed * tokenPrice;
+              const totalSlashableUsd = balance.total_slashable * tokenPrice;
+              const utilizationPercent = totalSlashableUsd > 0 ? (preSlashedUsd / totalSlashableUsd) * 100 : 0;
+              const vaultDisplayName = `${balance.curator_name}: ${balance.maker_token} Vault`;
               
               return (
-                <div key={balance.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{balance.operator.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {balance.balance.toLocaleString()} YODL (${balance.usd_value.toLocaleString()})
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Slashable: ${slashableAmount.toLocaleString()}
-                    </p>
-                  </div>
-                  <Button 
-                    size="sm"
-                    onClick={() => handleSlashPreFund(balance.operator.name, balance.balance)}
-                  >
-                    Slash/Pre-Fund
-                  </Button>
-                </div>
+                <Collapsible key={balance.id}>
+                  <CollapsibleTrigger className="flex items-center gap-4 w-full p-4 border rounded-lg hover:bg-muted/50">
+                    <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                    
+                    {/* Left Side - Vault Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-3 mb-2">
+                        <p className="font-medium whitespace-nowrap">{vaultDisplayName}</p>
+                        <p className="text-sm">
+                          {balance.total_pre_slashed.toLocaleString()} {balance.maker_token} / {balance.total_slashable.toLocaleString()} {balance.maker_token}
+                        </p>
+                        <p className="text-sm text-cyan-500 whitespace-nowrap">
+                          (Total Pre-Slashed / Total Slashable)
+                        </p>
+                      </div>
+                      <Progress value={utilizationPercent} className={`h-2 mb-1 transition-all duration-1000 ${balance.isSlashing ? 'animate-pulse' : ''}`} />
+                      <p className="text-xs text-muted-foreground">
+                        Utilization %: {utilizationPercent.toFixed(0)}%
+                      </p>
+                    </div>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <div className="p-4 pt-0 space-y-4 bg-muted/20 border-x border-b rounded-b-lg">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Total Staked</p>
+                          <p className="font-medium">{balance.balance.toLocaleString()} YODL</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">USD Value</p>
+                          <p className="font-medium">${balance.usd_value.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Total Pre-Slashed</p>
+                          <p className="font-medium">{balance.total_pre_slashed.toLocaleString()} {balance.maker_token}</p>
+                          <p className="text-xs text-muted-foreground">${preSlashedUsd.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Total Slashable</p>
+                          <p className="font-medium text-green-600">{balance.total_slashable.toLocaleString()} {balance.maker_token}</p>
+                          <p className="text-xs text-muted-foreground">${totalSlashableUsd.toLocaleString()}</p>
+                        </div>
+                      </div>
+
+                      <Button 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSlashPreFund(balance);
+                        }}
+                      >
+                        Slash/Pre-Fund
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               );
             })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Pre-Slashed Utilization by Vault */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Pre-Slashed Amounts (Vault-wise)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {preSlashedData.map((vault) => (
-            <div key={vault.id} className="space-y-2">
-              <div className="flex justify-between">
-                <span className="font-medium">{vault.vault_name}</span>
-                <span className="text-sm text-muted-foreground">
-                  {vault.utilization_percentage.toFixed(1)}%
-                </span>
-              </div>
-              <Progress value={vault.utilization_percentage} className="h-3" />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Utilized: ${vault.utilized_amount.toLocaleString()}</span>
-                <span>Total: ${vault.total_allocated.toLocaleString()}</span>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      {/* Slash/Pre-Fund Dialog */}
+      <Dialog open={slashDialogOpen} onOpenChange={setSlashDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Slash/Pre-Fund - {selectedVault && `${selectedVault.curator_name}: ${selectedVault.maker_token} Vault`}</DialogTitle>
+            <DialogDescription>
+              Enter the amount you want to slash/pre-fund from this vault
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedVault && (() => {
+            const tokenPrice = TOKEN_PRICES[selectedVault.maker_token] || 1;
+            const totalSlashableUsd = selectedVault.total_slashable * tokenPrice;
+            const preSlashedUsd = selectedVault.total_pre_slashed * tokenPrice;
+            const maxAvailableUsd = totalSlashableUsd - preSlashedUsd;
+            
+            return (
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total Slashable:</span>
+                    <span className="font-medium">
+                      {selectedVault.total_slashable.toLocaleString()} {selectedVault.maker_token} (${totalSlashableUsd.toLocaleString()})
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total Pre-Slashed:</span>
+                    <span className="font-medium">
+                      {selectedVault.total_pre_slashed.toLocaleString()} {selectedVault.maker_token} (${preSlashedUsd.toLocaleString()})
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold">
+                    <span>Maximum Available:</span>
+                    <span className="text-green-600">
+                      {(selectedVault.total_slashable - selectedVault.total_pre_slashed).toLocaleString()} {selectedVault.maker_token} (${maxAvailableUsd.toLocaleString()})
+                    </span>
+                  </div>
+                </div>
 
-      {/* Total Slashable vs Slashed Progress */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Total Slashable Amount
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between">
-            <span>Already Slashed vs Total Slashable</span>
-            <span className="font-bold">
-              ${totalSlashed.toLocaleString()} / ${totalSlashable.toLocaleString()}
-            </span>
-          </div>
-          <Progress value={(totalSlashed / totalSlashable) * 100} className="h-4" />
-        </CardContent>
-      </Card>
+                <div className="space-y-2">
+                  <Label htmlFor="slash-amount">Slash Amount (USD)</Label>
+                  <Input
+                    id="slash-amount"
+                    type="number"
+                    placeholder="Enter amount"
+                    value={slashAmount}
+                    onChange={(e) => setSlashAmount(e.target.value)}
+                    min="0"
+                    max={maxAvailableUsd}
+                  />
+                </div>
+              </div>
+            );
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSlashDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSlashSubmit}>
+              Confirm Slash
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Delegations by Execution Vault */}
       <Card>
@@ -300,87 +931,397 @@ export function ReserveTab() {
         </CardContent>
       </Card>
 
-      {/* Taker Tokens in Escrow */}
+      {/* Position Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            Taker Tokens in Escrow
+            Position Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="p-4 bg-primary/10 rounded-lg mb-4">
-            <p className="text-sm text-muted-foreground">Total Escrow Value</p>
-            <p className="text-3xl font-bold">
-              ${escrowTokenBalances.reduce((sum, token) => sum + token.usd_value, 0).toLocaleString()}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {escrowTokenBalances.length} token types
-            </p>
-          </div>
-          
-          {escrowTokenBalances.map((token) => (
-            <div key={token.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="font-bold text-sm text-primary">{token.token_symbol.substring(0, 2)}</span>
-                </div>
-                <div>
-                  <p className="font-medium">{token.token_symbol}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {token.amount.toLocaleString()} tokens
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-lg">${token.usd_value.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">USD Value</p>
-              </div>
+        <CardContent className="space-y-6">
+          {/* Key Metrics Header */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Current Value of Assets Slashed */}
+            <div className="p-4 bg-muted/30 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Current Value of Assets Slashed</p>
+              <p className="text-3xl font-bold mb-2">${totalAssetsSlashed.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">No. of Assets Slashed: {numAssetsSlashed}</p>
             </div>
-          ))}
+
+            {/* Current Value of Assets in Custody */}
+            <div className="p-4 bg-muted/30 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Current Value of Assets in Custody</p>
+              <p className="text-3xl font-bold mb-2">${totalAssetsInCustody.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">No. of Assets Held: {numAssetsHeld}</p>
+            </div>
+
+            {/* Gross Profit/Loss */}
+            <div className="p-4 bg-muted/30 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Gross Profit/Loss</p>
+              <div className="flex items-center gap-2 mb-2">
+                {isProfit ? (
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                ) : (
+                  <TrendingDown className="h-5 w-5 text-destructive" />
+                )}
+                <p className={`text-3xl font-bold ${isProfit ? 'text-green-600' : 'text-destructive'}`}>
+                  ${Math.abs(grossProfitLoss).toLocaleString()}
+                </p>
+              </div>
+              <p className={`text-xs ${isProfit ? 'text-green-600' : 'text-destructive'}`}>
+                {isProfit ? '+' : '-'}{Math.abs(profitLossPercentage).toFixed(2)}%
+              </p>
+            </div>
+          </div>
+
+          {/* Assets in Escrow Table */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Assets in Escrow</h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Token Name</TableHead>
+                  <TableHead className="text-right">Token Quantity</TableHead>
+                  <TableHead className="text-right">Token Amount in USD</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-center">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {escrowTokens.map((token) => (
+                  <TableRow key={token.id} className="hover:bg-muted/50">
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="font-bold text-xs text-primary">
+                            {token.token_symbol.substring(0, 2)}
+                          </span>
+                        </div>
+                        {token.token_symbol}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {token.amount.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      ${token.usd_value.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={token.isListed ? "default" : "secondary"}>
+                        {token.isListed ? "Listed" : "Un-Listed"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {token.isListed ? (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleRestore(token)}
+                        >
+                          Restore
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => handleSwap(token)}
+                        >
+                          Swap
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Fund Escrow Transactions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5" />
-            Fund Escrow Transactions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {escrowTransactions.map((tx) => (
-            <div key={tx.id} className="flex items-center justify-between p-3 border rounded-lg">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>
-                    {tx.status}
-                  </Badge>
-                  <span className="text-sm font-mono text-muted-foreground">
-                    {tx.transaction_hash?.substring(0, 10)}...
-                  </span>
+      {/* Restore Dialog */}
+      <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restore Funds to Vault</DialogTitle>
+            <DialogDescription>
+              Transfer funds from escrow to a vault. The system will automatically convert tokens if needed.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedToken && (
+            <div className="space-y-4">
+              {/* Selected Token Info */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Selected Token</p>
+                  <p className="font-semibold">{selectedToken.token_symbol}</p>
                 </div>
-                <div className="mt-1">
-                  <p className="font-medium">${tx.amount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">
-                    To Escrow: ${(tx.amount * 0.95).toLocaleString()} | 
-                    To FeeManager: ${(tx.amount * 0.05).toLocaleString()}
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Available in Escrow</p>
+                  <p className="font-medium">
+                    {selectedToken.amount.toLocaleString()} {selectedToken.token_symbol}
+                    <span className="text-sm text-muted-foreground ml-2">
+                      (${selectedToken.usd_value.toLocaleString()})
+                    </span>
                   </p>
                 </div>
               </div>
-              <Button 
-                size="sm"
-                onClick={() => handleExecuteTransaction(tx.transaction_hash)}
-                disabled={tx.status === 'completed'}
-              >
-                <ExternalLink className="h-4 w-4 mr-1" />
-                Execute
-              </Button>
+
+              {/* Vault Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="restore-vault">Select Vault</Label>
+                <Select value={selectedRestoreVault} onValueChange={setSelectedRestoreVault}>
+                  <SelectTrigger id="restore-vault">
+                    <SelectValue placeholder="Choose a vault" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {yodlBalances.map((vault) => {
+                      const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
+                      const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
+                      if (!vaultData) return null;
+                      
+                      const tokenPrice = TOKEN_PRICES[selectedToken.token_symbol] || 1;
+                      const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+                      const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
+                      const availableCapacityUsd = availableCapacity * vaultTokenPrice;
+                      
+                      return (
+                        <SelectItem key={vault.id} value={vault.id}>
+                          <div className="flex flex-col">
+                            <span>{vaultDisplayName}</span>
+                            <span className="text-xs text-muted-foreground">
+                              Available capacity: {availableCapacity.toLocaleString()} {vault.maker_token} (${availableCapacityUsd.toLocaleString()})
+                            </span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Amount Input */}
+              <div className="space-y-2">
+                <Label htmlFor="restore-amount">Amount (USD)</Label>
+                <Input
+                  id="restore-amount"
+                  type="number"
+                  placeholder="Enter amount in USD"
+                  value={restoreAmount}
+                  onChange={(e) => setRestoreAmount(e.target.value)}
+                  min="0"
+                />
+                {selectedRestoreVault && (() => {
+                  const vault = yodlBalances.find(v => v.id === selectedRestoreVault);
+                  if (!vault) return null;
+                  
+                  const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
+                  const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
+                  if (!vaultData) return null;
+                  
+                  const tokenPrice = TOKEN_PRICES[selectedToken.token_symbol] || 1;
+                  const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+                  const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
+                  const availableCapacityUsd = availableCapacity * vaultTokenPrice;
+                  const maxRestorableUsd = Math.min(selectedToken.usd_value, availableCapacityUsd);
+                  
+                  return (
+                    <p className="text-sm text-muted-foreground">
+                      Max restorable: ${maxRestorableUsd.toLocaleString()}
+                      {selectedToken.token_symbol !== vault.maker_token && (
+                        <span className="text-cyan-500 ml-2">
+                          (Will convert {selectedToken.token_symbol} → {vault.maker_token})
+                        </span>
+                      )}
+                    </p>
+                  );
+                })()}
+              </div>
+
+              {/* Preview Calculation */}
+              {selectedRestoreVault && restoreAmount && (() => {
+                const amount = parseFloat(restoreAmount);
+                if (isNaN(amount) || amount <= 0) return null;
+
+                const vault = yodlBalances.find(v => v.id === selectedRestoreVault);
+                if (!vault) return null;
+
+                const tokenPrice = TOKEN_PRICES[selectedToken.token_symbol] || 1;
+                const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+                const tokenQuantityUsed = amount / tokenPrice;
+                const vaultTokenQuantity = amount / vaultTokenPrice;
+
+                return (
+                  <div className="p-4 bg-primary/10 rounded-lg space-y-2 text-sm">
+                    <p className="font-semibold">Preview:</p>
+                    <p>• Using: {tokenQuantityUsed.toFixed(4)} {selectedToken.token_symbol}</p>
+                    <p>• Restoring: {vaultTokenQuantity.toFixed(4)} {vault.maker_token}</p>
+                    <p>• To: {vault.curator_name}: {vault.maker_token} Vault</p>
+                  </div>
+                );
+              })()}
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRestoreSubmit}>
+              Confirm Restore
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Swap Dialog */}
+      <Dialog open={swapDialogOpen} onOpenChange={setSwapDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Swap & Restore Un-Listed Token</DialogTitle>
+            <DialogDescription>
+              Step 1: Select vault tokens to convert. Step 2: Choose target vault and amount to restore.
+            </DialogDescription>
+          </DialogHeader>
+
+          {swapSelectedToken && (
+            <div className="space-y-4">
+              {/* Selected Token Info */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Un-Listed Token</p>
+                  <p className="font-semibold">{swapSelectedToken.token_symbol}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Available in Escrow</p>
+                  <p className="font-medium">
+                    {swapSelectedToken.amount.toLocaleString()} {swapSelectedToken.token_symbol}
+                    <span className="text-sm text-muted-foreground ml-2">
+                      (${swapSelectedToken.usd_value.toLocaleString()})
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 1: Select Vault Tokens to Convert */}
+              <div className="space-y-3">
+                <Label>Step 1: Select tokens from Active Vaults to convert</Label>
+                <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
+                  {vaults.map((vault) => {
+                    const tokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+                    const availableCapacity = vault.total_pre_slashed - vault.orchestrator_balance;
+                    const availableUsd = availableCapacity * tokenPrice;
+                    
+                    return (
+                      <div key={vault.id} className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded">
+                        <Checkbox
+                          checked={swapSelectedVaultTokens.includes(vault.maker_token)}
+                          onCheckedChange={() => handleSwapTokenToggle(vault.maker_token)}
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium">{vault.maker_token}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Available capacity: {availableCapacity.toLocaleString()} {vault.maker_token} (${availableUsd.toLocaleString()})
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {swapSelectedVaultTokens.length > 0 && (
+                  <p className="text-sm text-green-600">
+                    Selected {swapSelectedVaultTokens.length} token(s): {swapSelectedVaultTokens.join(', ')}
+                  </p>
+                )}
+              </div>
+
+              {/* Step 2: Select Target Vault */}
+              <div className="space-y-2">
+                <Label htmlFor="swap-target-vault">Step 2: Select Target Vault to Restore</Label>
+                <Select value={swapTargetVault} onValueChange={setSwapTargetVault}>
+                  <SelectTrigger id="swap-target-vault">
+                    <SelectValue placeholder="Choose a vault" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {yodlBalances.map((vault) => {
+                      const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
+                      const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
+                      if (!vaultData) return null;
+                      
+                      const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+                      const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
+                      const availableCapacityUsd = availableCapacity * vaultTokenPrice;
+                      
+                      return (
+                        <SelectItem key={vault.id} value={vault.id}>
+                          <div className="flex flex-col">
+                            <span>{vaultDisplayName}</span>
+                            <span className="text-xs text-muted-foreground">
+                              Available capacity: {availableCapacity.toLocaleString()} {vault.maker_token} (${availableCapacityUsd.toLocaleString()})
+                            </span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Amount Input */}
+              <div className="space-y-2">
+                <Label htmlFor="swap-amount">Amount to Restore (USD)</Label>
+                <Input
+                  id="swap-amount"
+                  type="number"
+                  placeholder="Enter amount in USD"
+                  value={swapAmount}
+                  onChange={(e) => setSwapAmount(e.target.value)}
+                  min="0"
+                />
+                {swapTargetVault && swapSelectedVaultTokens.length > 0 && (() => {
+                  const targetVault = yodlBalances.find(v => v.id === swapTargetVault);
+                  if (!targetVault) return null;
+                  
+                  const vaultDisplayName = `${targetVault.curator_name}: ${targetVault.maker_token} Vault`;
+                  const targetVaultData = vaults.find(v => v.vault_name === vaultDisplayName);
+                  if (!targetVaultData) return null;
+                  
+                  const selectedVaultsData = vaults.filter(v => swapSelectedVaultTokens.includes(v.maker_token));
+                  const totalAvailableUsd = selectedVaultsData.reduce((sum, v) => {
+                    const tokenPrice = TOKEN_PRICES[v.maker_token] || 1;
+                    const availableCapacity = v.total_pre_slashed - v.orchestrator_balance;
+                    return sum + (availableCapacity * tokenPrice);
+                  }, 0);
+                  
+                  const vaultTokenPrice = TOKEN_PRICES[targetVault.maker_token] || 1;
+                  const availableCapacity = targetVaultData.total_pre_slashed - targetVaultData.orchestrator_balance;
+                  const availableCapacityUsd = availableCapacity * vaultTokenPrice;
+                  const maxSwappableUsd = Math.min(swapSelectedToken.usd_value, totalAvailableUsd, availableCapacityUsd);
+                  
+                  return (
+                    <p className="text-sm text-muted-foreground">
+                      Max swappable: ${maxSwappableUsd.toLocaleString()}
+                      <span className="text-cyan-500 ml-2">
+                        (From selected tokens: ${totalAvailableUsd.toLocaleString()})
+                      </span>
+                    </p>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSwapDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSwapSubmit}>
+              Confirm Swap & Restore
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

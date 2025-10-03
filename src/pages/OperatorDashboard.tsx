@@ -11,6 +11,8 @@ import { ReserveTab } from "@/components/dashboard/operator/ReserveTab";
 import { RebalanceReplenishTab } from "@/components/dashboard/operator/RebalanceReplenishTab";
 import { ClaimFeeTab } from "@/components/dashboard/operator/ClaimFeeTab";
 import { ChallengeTab } from "@/components/dashboard/operator/ChallengeTab";
+import { MoveFundToEscrowTab } from "@/components/dashboard/operator/MoveFundToEscrowTab";
+import { LiquidationsTab } from "@/components/dashboard/operator/LiquidationsTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,6 +46,15 @@ interface UnclaimedFee {
   operator_id: string;
 }
 
+interface SharedVaultData {
+  id: string;
+  vault_name: string;
+  maker_token: string;
+  escrow_amount: number;
+  orchestrator_balance: number;
+  total_pre_slashed: number;
+}
+
 export default function OperatorDashboard() {
   const { profile, signOut, hasRole } = useAuth();
   const navigate = useNavigate();
@@ -51,6 +62,7 @@ export default function OperatorDashboard() {
   const [yodlPrice, setYodlPrice] = useState<YodlPrice | null>(null);
   const [vaultTimers, setVaultTimers] = useState<VaultTimer[]>([]);
   const [unclaimedFees, setUnclaimedFees] = useState<UnclaimedFee[]>([]);
+  const [sharedVaults, setSharedVaults] = useState<SharedVaultData[]>([]);
 
   useEffect(() => {
     if (!hasRole('curator')) {
@@ -213,27 +225,42 @@ export default function OperatorDashboard() {
             <div className="space-y-6">
               {/* Operator Tabs - Only visible to operators */}
               {!hasRole('curator') && (
-                <Tabs defaultValue="reserve" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4 mb-6">
+                <Tabs defaultValue="rebalance" className="w-full">
+                  <TabsList className="grid w-full grid-cols-6 mb-6">
                     <TabsTrigger value="rebalance">Rebalance/Replenish</TabsTrigger>
                     <TabsTrigger value="reserve">Reserve</TabsTrigger>
+                    <TabsTrigger value="movefund">Move Fund to Escrow</TabsTrigger>
                     <TabsTrigger value="challenge">Challenge</TabsTrigger>
+                    <TabsTrigger value="liquidations">Liquidations</TabsTrigger>
                     <TabsTrigger value="claim">Claim Fee</TabsTrigger>
                   </TabsList>
                   
-                  <TabsContent value="rebalance" className="mt-6">
+                  <TabsContent value="rebalance" forceMount className="mt-6">
                     <RebalanceReplenishTab 
                       vaultTimers={vaultTimers}
                       setVaultTimers={setVaultTimers}
+                      sharedVaults={sharedVaults}
+                      onVaultsUpdate={setSharedVaults}
                     />
                   </TabsContent>
                   
-                  <TabsContent value="reserve" className="mt-6">
-                    <ReserveTab />
+                  <TabsContent value="reserve" forceMount className="mt-6">
+                    <ReserveTab 
+                      sharedVaults={sharedVaults}
+                      onVaultsUpdate={setSharedVaults}
+                    />
+                  </TabsContent>
+                  
+                  <TabsContent value="movefund" className="mt-6">
+                    <MoveFundToEscrowTab />
                   </TabsContent>
                   
                   <TabsContent value="challenge" className="mt-6">
                     <ChallengeTab />
+                  </TabsContent>
+                  
+                  <TabsContent value="liquidations" className="mt-6">
+                    <LiquidationsTab />
                   </TabsContent>
                   
                   <TabsContent value="claim" className="mt-6">
