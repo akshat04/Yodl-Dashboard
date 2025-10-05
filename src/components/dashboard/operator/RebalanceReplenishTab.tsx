@@ -46,11 +46,20 @@ interface VaultTimer {
   isActive: boolean;
 }
 
+interface EscrowToken {
+  id: string;
+  token_symbol: string;
+  amount: number;
+  usd_value: number;
+  isListed: boolean;
+}
+
 interface RebalanceReplenishTabProps {
   vaultTimers: VaultTimer[];
   setVaultTimers: React.Dispatch<React.SetStateAction<VaultTimer[]>>;
   sharedVaults?: SharedVaultData[];
   onVaultsUpdate?: (vaults: SharedVaultData[]) => void;
+  escrowTokens?: EscrowToken[];
 }
 
 interface SharedVaultData {
@@ -62,7 +71,7 @@ interface SharedVaultData {
   total_pre_slashed: number;
 }
 
-export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVaults, onVaultsUpdate }: RebalanceReplenishTabProps) {
+export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVaults, onVaultsUpdate, escrowTokens }: RebalanceReplenishTabProps) {
   const [vaults, setVaults] = useState<VaultRebalance[]>([]);
   const [preSlashed, setPreSlashed] = useState<PreSlashedVault[]>([]);
   const [loading, setLoading] = useState(true);
@@ -590,7 +599,13 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">Escrow Balance</p>
-                          <p className="font-medium">{vault.escrow_amount.toLocaleString()} {vault.maker_token}</p>
+                          <p className="font-medium">
+                            {(() => {
+                              const escrowToken = escrowTokens?.find(t => t.token_symbol === vault.maker_token);
+                              const escrowBalance = escrowToken?.amount ?? 0;
+                              return `${escrowBalance.toLocaleString()} ${vault.maker_token}`;
+                            })()}
+                          </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">{deficitSurplus.type === 'deficit' ? 'Deficit' : 'Surplus'}</p>

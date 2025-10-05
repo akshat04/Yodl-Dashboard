@@ -55,6 +55,14 @@ interface SharedVaultData {
   total_pre_slashed: number;
 }
 
+interface EscrowToken {
+  id: string;
+  token_symbol: string;
+  amount: number;
+  usd_value: number;
+  isListed: boolean;
+}
+
 export default function OperatorDashboard() {
   const { profile, signOut, hasRole } = useAuth();
   const navigate = useNavigate();
@@ -63,6 +71,7 @@ export default function OperatorDashboard() {
   const [vaultTimers, setVaultTimers] = useState<VaultTimer[]>([]);
   const [unclaimedFees, setUnclaimedFees] = useState<UnclaimedFee[]>([]);
   const [sharedVaults, setSharedVaults] = useState<SharedVaultData[]>([]);
+  const [escrowTokens, setEscrowTokens] = useState<EscrowToken[]>([]);
 
   useEffect(() => {
     if (!hasRole('curator')) {
@@ -241,6 +250,7 @@ export default function OperatorDashboard() {
                       setVaultTimers={setVaultTimers}
                       sharedVaults={sharedVaults}
                       onVaultsUpdate={setSharedVaults}
+                      escrowTokens={escrowTokens}
                     />
                   </TabsContent>
                   
@@ -248,6 +258,8 @@ export default function OperatorDashboard() {
                     <ReserveTab 
                       sharedVaults={sharedVaults}
                       onVaultsUpdate={setSharedVaults}
+                      escrowTokens={escrowTokens}
+                      onEscrowTokensUpdate={setEscrowTokens}
                     />
                   </TabsContent>
                   

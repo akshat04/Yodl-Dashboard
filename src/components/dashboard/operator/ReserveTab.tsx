@@ -69,6 +69,8 @@ interface EscrowToken {
 interface ReserveTabProps {
   sharedVaults?: SharedVaultData[];
   onVaultsUpdate?: (vaults: SharedVaultData[]) => void;
+  escrowTokens?: EscrowToken[];
+  onEscrowTokensUpdate?: (tokens: EscrowToken[]) => void;
 }
 
 interface SharedVaultData {
@@ -80,7 +82,7 @@ interface SharedVaultData {
   total_pre_slashed: number;
 }
 
-export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
+export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEscrowTokens, onEscrowTokensUpdate }: ReserveTabProps) {
   const [yodlBalances, setYodlBalances] = useState<YodlBalance[]>([]);
   const [preSlashedData, setPreSlashedData] = useState<PreSlashedData[]>([]);
   const [delegations, setDelegations] = useState<DelegationData[]>([]);
@@ -96,7 +98,6 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
   const [restoreAmount, setRestoreAmount] = useState("");
   const [swapDialogOpen, setSwapDialogOpen] = useState(false);
   const [swapSelectedToken, setSwapSelectedToken] = useState<EscrowToken | null>(null);
-  const [swapSelectedVaultTokens, setSwapSelectedVaultTokens] = useState<string[]>([]);
   const [swapTargetVault, setSwapTargetVault] = useState<string>("");
   const [swapAmount, setSwapAmount] = useState("");
   const { toast } = useToast();
@@ -104,6 +105,13 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Initialize from prop if provided
+  useEffect(() => {
+    if (propEscrowTokens && propEscrowTokens.length > 0) {
+      setEscrowTokens(propEscrowTokens);
+    }
+  }, [propEscrowTokens]);
 
   // Sync with shared vaults from parent
   useEffect(() => {
@@ -119,6 +127,13 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
       onVaultsUpdate(vaults);
     }
   }, [vaults]);
+
+  // Notify parent when escrowTokens change
+  useEffect(() => {
+    if (escrowTokens.length > 0 && onEscrowTokensUpdate) {
+      onEscrowTokensUpdate(escrowTokens);
+    }
+  }, [escrowTokens, onEscrowTokensUpdate]);
 
   const fetchData = async () => {
     try {
@@ -562,25 +577,16 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
 
   const handleSwap = (token: EscrowToken) => {
     setSwapSelectedToken(token);
-    setSwapSelectedVaultTokens([]);
     setSwapTargetVault("");
     setSwapAmount("");
     setSwapDialogOpen(true);
   };
 
-  const handleSwapTokenToggle = (tokenSymbol: string) => {
-    setSwapSelectedVaultTokens(prev =>
-      prev.includes(tokenSymbol)
-        ? prev.filter(t => t !== tokenSymbol)
-        : [...prev, tokenSymbol]
-    );
-  };
-
   const handleSwapSubmit = () => {
-    if (!swapSelectedToken || swapSelectedVaultTokens.length === 0 || !swapTargetVault) {
+    if (!swapSelectedToken || !swapTargetVault) {
       toast({
         title: "Missing Information",
-        description: "Please select tokens to convert, a target vault, and enter an amount",
+        description: "Please select a target vault and enter an amount",
         variant: "destructive"
       });
       return;
@@ -631,25 +637,20 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
       return;
     }
 
-    // Calculate total available from selected vault tokens
-    const selectedVaultsData = vaults.filter(v => swapSelectedVaultTokens.includes(v.maker_token));
-    const totalAvailableUsd = selectedVaultsData.reduce((sum, v) => {
-      const tokenPrice = TOKEN_PRICES[v.maker_token] || 1;
-      const availableCapacity = v.total_pre_slashed - v.orchestrator_balance;
-      return sum + (availableCapacity * tokenPrice);
-    }, 0);
+    // Check if amount exceeds available escrow balance
+    const unlistedTokenPrice = TOKEN_PRICES[swapSelectedToken.token_symbol] || 1;
+    const swapTokenAvailableUsd = swapSelectedToken.amount * unlistedTokenPrice;
 
-    if (amount > totalAvailableUsd) {
+    if (amount > swapTokenAvailableUsd) {
       toast({
-        title: "Insufficient Balance",
-        description: `Total available from selected vaults is $${totalAvailableUsd.toLocaleString()}`,
+        title: "Insufficient Escrow Balance",
+        description: `Available escrow balance is $${swapTokenAvailableUsd.toLocaleString()}`,
         variant: "destructive"
       });
       return;
     }
 
     // Update escrow token balance (remove the un-listed token) and persist
-    const unlistedTokenPrice = TOKEN_PRICES[swapSelectedToken.token_symbol] || 1;
     const tokenQuantityUsed = amount / unlistedTokenPrice;
     const updatedTokens = escrowTokens.map(t =>
       t.id === swapSelectedToken.id
@@ -747,8 +748,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 bg-primary/10 rounded-lg">
               <p className="text-sm text-muted-foreground">Total Staked</p>
-              <p className="text-2xl font-bold">{totalYodlStaked.toLocaleString()} YODL</p>
-              <p className="text-sm text-muted-foreground">${totalYodlUsd.toLocaleString()}</p>
+              <p className="text-2xl font-bold">${totalYodlUsd.toLocaleString()}</p>
             </div>
             <div className="p-4 bg-primary/10 rounded-lg space-y-2">
               <p className="text-sm text-muted-foreground">Total Pre-Slashed vs Total Slashable</p>
@@ -1103,40 +1103,23 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
 
               {/* Amount Input */}
               <div className="space-y-2">
-                <Label htmlFor="restore-amount">Amount (USD)</Label>
+                <Label htmlFor="restore-amount">
+                  {selectedRestoreVault && (() => {
+                    const vault = yodlBalances.find(v => v.id === selectedRestoreVault);
+                    return vault ? `Amount (${vault.maker_token})` : 'Amount (USD)';
+                  })() || 'Amount (USD)'}
+                </Label>
                 <Input
                   id="restore-amount"
                   type="number"
-                  placeholder="Enter amount in USD"
+                  placeholder={selectedRestoreVault && (() => {
+                    const vault = yodlBalances.find(v => v.id === selectedRestoreVault);
+                    return vault ? `Enter amount in ${vault.maker_token}` : 'Enter amount in USD';
+                  })() || 'Enter amount in USD'}
                   value={restoreAmount}
                   onChange={(e) => setRestoreAmount(e.target.value)}
                   min="0"
                 />
-                {selectedRestoreVault && (() => {
-                  const vault = yodlBalances.find(v => v.id === selectedRestoreVault);
-                  if (!vault) return null;
-                  
-                  const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
-                  const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
-                  if (!vaultData) return null;
-                  
-                  const tokenPrice = TOKEN_PRICES[selectedToken.token_symbol] || 1;
-                  const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
-                  const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
-                  const availableCapacityUsd = availableCapacity * vaultTokenPrice;
-                  const maxRestorableUsd = Math.min(selectedToken.usd_value, availableCapacityUsd);
-                  
-                  return (
-                    <p className="text-sm text-muted-foreground">
-                      Max restorable: ${maxRestorableUsd.toLocaleString()}
-                      {selectedToken.token_symbol !== vault.maker_token && (
-                        <span className="text-cyan-500 ml-2">
-                          (Will convert {selectedToken.token_symbol} → {vault.maker_token})
-                        </span>
-                      )}
-                    </p>
-                  );
-                })()}
               </div>
 
               {/* Preview Calculation */}
@@ -1181,7 +1164,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
           <DialogHeader>
             <DialogTitle>Swap & Restore Un-Listed Token</DialogTitle>
             <DialogDescription>
-              Step 1: Select vault tokens to convert. Step 2: Choose target vault and amount to restore.
+              Choose target vault and amount to restore.
             </DialogDescription>
           </DialogHeader>
 
@@ -1204,41 +1187,9 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
                 </div>
               </div>
 
-              {/* Step 1: Select Vault Tokens to Convert */}
-              <div className="space-y-3">
-                <Label>Step 1: Select tokens from Active Vaults to convert</Label>
-                <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
-                  {vaults.map((vault) => {
-                    const tokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
-                    const availableCapacity = vault.total_pre_slashed - vault.orchestrator_balance;
-                    const availableUsd = availableCapacity * tokenPrice;
-                    
-                    return (
-                      <div key={vault.id} className="flex items-center space-x-3 p-2 hover:bg-muted/50 rounded">
-                        <Checkbox
-                          checked={swapSelectedVaultTokens.includes(vault.maker_token)}
-                          onCheckedChange={() => handleSwapTokenToggle(vault.maker_token)}
-                        />
-                        <div className="flex-1">
-                          <p className="font-medium">{vault.maker_token}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Available capacity: {availableCapacity.toLocaleString()} {vault.maker_token} (${availableUsd.toLocaleString()})
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {swapSelectedVaultTokens.length > 0 && (
-                  <p className="text-sm text-green-600">
-                    Selected {swapSelectedVaultTokens.length} token(s): {swapSelectedVaultTokens.join(', ')}
-                  </p>
-                )}
-              </div>
-
-              {/* Step 2: Select Target Vault */}
+              {/* Select Target Vault */}
               <div className="space-y-2">
-                <Label htmlFor="swap-target-vault">Step 2: Select Target Vault to Restore</Label>
+                <Label htmlFor="swap-target-vault">Select Target Vault to Restore</Label>
                 <Select value={swapTargetVault} onValueChange={setSwapTargetVault}>
                   <SelectTrigger id="swap-target-vault">
                     <SelectValue placeholder="Choose a vault" />
@@ -1270,44 +1221,23 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate }: ReserveTabProps) {
 
               {/* Amount Input */}
               <div className="space-y-2">
-                <Label htmlFor="swap-amount">Amount to Restore (USD)</Label>
+                <Label htmlFor="swap-amount">
+                  {swapTargetVault && (() => {
+                    const targetVault = yodlBalances.find(v => v.id === swapTargetVault);
+                    return targetVault ? `Amount to Restore (${targetVault.maker_token})` : 'Amount to Restore (USD)';
+                  })() || 'Amount to Restore (USD)'}
+                </Label>
                 <Input
                   id="swap-amount"
                   type="number"
-                  placeholder="Enter amount in USD"
+                  placeholder={swapTargetVault && (() => {
+                    const targetVault = yodlBalances.find(v => v.id === swapTargetVault);
+                    return targetVault ? `Enter amount in ${targetVault.maker_token}` : 'Enter amount in USD';
+                  })() || 'Enter amount in USD'}
                   value={swapAmount}
                   onChange={(e) => setSwapAmount(e.target.value)}
                   min="0"
                 />
-                {swapTargetVault && swapSelectedVaultTokens.length > 0 && (() => {
-                  const targetVault = yodlBalances.find(v => v.id === swapTargetVault);
-                  if (!targetVault) return null;
-                  
-                  const vaultDisplayName = `${targetVault.curator_name}: ${targetVault.maker_token} Vault`;
-                  const targetVaultData = vaults.find(v => v.vault_name === vaultDisplayName);
-                  if (!targetVaultData) return null;
-                  
-                  const selectedVaultsData = vaults.filter(v => swapSelectedVaultTokens.includes(v.maker_token));
-                  const totalAvailableUsd = selectedVaultsData.reduce((sum, v) => {
-                    const tokenPrice = TOKEN_PRICES[v.maker_token] || 1;
-                    const availableCapacity = v.total_pre_slashed - v.orchestrator_balance;
-                    return sum + (availableCapacity * tokenPrice);
-                  }, 0);
-                  
-                  const vaultTokenPrice = TOKEN_PRICES[targetVault.maker_token] || 1;
-                  const availableCapacity = targetVaultData.total_pre_slashed - targetVaultData.orchestrator_balance;
-                  const availableCapacityUsd = availableCapacity * vaultTokenPrice;
-                  const maxSwappableUsd = Math.min(swapSelectedToken.usd_value, totalAvailableUsd, availableCapacityUsd);
-                  
-                  return (
-                    <p className="text-sm text-muted-foreground">
-                      Max swappable: ${maxSwappableUsd.toLocaleString()}
-                      <span className="text-cyan-500 ml-2">
-                        (From selected tokens: ${totalAvailableUsd.toLocaleString()})
-                      </span>
-                    </p>
-                  );
-                })()}
               </div>
             </div>
           )}
