@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronDown, Clock, RefreshCw, Vault, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +39,8 @@ interface PreSlashedVault {
   utilization_percentage: number;
   orchestrator_deficit: number;
   escrow_balance: number;
+  total_pre_slashed: number;
+  orchestrator_balance: number;
 }
 
 interface VaultTimer {
@@ -60,6 +63,7 @@ interface RebalanceReplenishTabProps {
   sharedVaults?: SharedVaultData[];
   onVaultsUpdate?: (vaults: SharedVaultData[]) => void;
   escrowTokens?: EscrowToken[];
+  onEscrowTokensUpdate?: (tokens: EscrowToken[]) => void;
 }
 
 interface SharedVaultData {
@@ -71,7 +75,18 @@ interface SharedVaultData {
   total_pre_slashed: number;
 }
 
-export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVaults, onVaultsUpdate, escrowTokens }: RebalanceReplenishTabProps) {
+// Token prices for USD conversion and token-to-token conversion
+const TOKEN_PRICES: Record<string, number> = {
+  'USDC': 1,
+  'USDT': 1,
+  'DAI': 1,
+  'WETH': 4480.49,
+  'WBTC': 120409.15,
+  'BNB': 1131.35,
+  'MATIC': 0.24
+};
+
+export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVaults, onVaultsUpdate, escrowTokens, onEscrowTokensUpdate }: RebalanceReplenishTabProps) {
   const [vaults, setVaults] = useState<VaultRebalance[]>([]);
   const [preSlashed, setPreSlashed] = useState<PreSlashedVault[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,13 +94,7 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
   const [replenishDialogOpen, setReplenishDialogOpen] = useState(false);
   const [selectedVault, setSelectedVault] = useState<PreSlashedVault | null>(null);
   const [selectedTokens, setSelectedTokens] = useState<string[]>([]);
-  const [availableTokens] = useState([
-    { symbol: 'USDC', escrow_balance: 25000 },
-    { symbol: 'WETH', escrow_balance: 18000 },
-    { symbol: 'DAI', escrow_balance: 30000 },
-    { symbol: 'USDT', escrow_balance: 22000 },
-    { symbol: 'WBTC', escrow_balance: 15000 },
-  ]);
+  const [tokenAmounts, setTokenAmounts] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -218,8 +227,10 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
           utilized_amount: 8500,
           total_allocated: 15000,
           utilization_percentage: 56.67,
-          orchestrator_deficit: Math.min(5000, 15000), // Cannot exceed total_allocated
-          escrow_balance: 25000
+          orchestrator_deficit: Math.min(5000, 15000),
+          escrow_balance: 25000,
+          total_pre_slashed: 20000,
+          orchestrator_balance: 15000
         },
         {
           id: '2',
@@ -228,8 +239,10 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
           utilized_amount: 12000,
           total_allocated: 20000,
           utilization_percentage: 60,
-          orchestrator_deficit: Math.min(8000, 20000), // Cannot exceed total_allocated
-          escrow_balance: 18000
+          orchestrator_deficit: Math.min(8000, 20000),
+          escrow_balance: 18000,
+          total_pre_slashed: 4,
+          orchestrator_balance: 1
         },
         {
           id: '3',
@@ -238,8 +251,10 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
           utilized_amount: 4500,
           total_allocated: 10000,
           utilization_percentage: 45,
-          orchestrator_deficit: Math.min(3500, 10000), // Cannot exceed total_allocated
-          escrow_balance: 30000
+          orchestrator_deficit: Math.min(3500, 10000),
+          escrow_balance: 30000,
+          total_pre_slashed: 15000,
+          orchestrator_balance: 10500
         }
       ];
 
@@ -266,8 +281,10 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
         utilized_amount: p.utilized_amount,
         total_allocated: p.total_allocated,
         utilization_percentage: p.utilization_percentage,
-        orchestrator_deficit: Math.min(Math.random() * 10000, p.total_allocated), // Cannot exceed total_allocated
-        escrow_balance: Math.random() * 50000 // Mock value
+        orchestrator_deficit: Math.min(Math.random() * 10000, p.total_allocated),
+        escrow_balance: Math.random() * 50000,
+        total_pre_slashed: p.total_allocated || Math.random() * 20000,
+        orchestrator_balance: (p.total_allocated || 0) - (p.utilized_amount || 0)
       })) : mockPreSlashed);
     } catch (error) {
       console.error('Error fetching rebalance data:', error);
@@ -313,8 +330,10 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
           utilized_amount: 8500,
           total_allocated: 15000,
           utilization_percentage: 56.67,
-          orchestrator_deficit: Math.min(5000, 15000), // Cannot exceed total_allocated
-          escrow_balance: 25000
+          orchestrator_deficit: Math.min(5000, 15000),
+          escrow_balance: 25000,
+          total_pre_slashed: 20000,
+          orchestrator_balance: 15000
         },
         {
           id: '2',
@@ -323,8 +342,10 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
           utilized_amount: 12000,
           total_allocated: 20000,
           utilization_percentage: 60,
-          orchestrator_deficit: Math.min(8000, 20000), // Cannot exceed total_allocated
-          escrow_balance: 18000
+          orchestrator_deficit: Math.min(8000, 20000),
+          escrow_balance: 18000,
+          total_pre_slashed: 4,
+          orchestrator_balance: 1
         }
       ];
 
@@ -370,30 +391,136 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
     setReplenishDialogOpen(true);
   };
 
+  const handleTokenToggle = (tokenSymbol: string) => {
+    setSelectedTokens(prev => {
+      const isRemoving = prev.includes(tokenSymbol);
+      if (isRemoving) {
+        // Clear amount when deselecting
+        setTokenAmounts(prevAmounts => {
+          const { [tokenSymbol]: _, ...rest } = prevAmounts;
+          return rest;
+        });
+        return prev.filter(t => t !== tokenSymbol);
+      }
+      return [...prev, tokenSymbol];
+    });
+  };
+
+  const handleAmountChange = (tokenSymbol: string, value: string) => {
+    setTokenAmounts(prev => ({
+      ...prev,
+      [tokenSymbol]: value
+    }));
+  };
+
+  const convertToken = (fromToken: string, amount: number, toToken: string): number => {
+    const fromPrice = TOKEN_PRICES[fromToken] || 0;
+    const toPrice = TOKEN_PRICES[toToken] || 1;
+    return (amount * fromPrice) / toPrice;
+  };
+
+  const calculateConversion = (fromToken: string, amount: string, toToken: string): string => {
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount === 0) return '0';
+    return convertToken(fromToken, numAmount, toToken).toFixed(6);
+  };
+
   const handleReplenishSubmit = () => {
-    if (!selectedVault || selectedTokens.length === 0) {
+    if (!selectedVault) return;
+    
+    // Validate amounts
+    let totalReplenishInVaultToken = 0;
+    const errors: string[] = [];
+
+    for (const tokenSymbol of selectedTokens) {
+      const amount = parseFloat(tokenAmounts[tokenSymbol] || '0');
+      
+      if (amount <= 0) {
+        errors.push(`Please enter a valid amount for ${tokenSymbol}`);
+        continue;
+      }
+
+      // Check if amount exceeds escrow balance
+      const escrowToken = escrowTokens?.find(t => t.token_symbol === tokenSymbol);
+      if (escrowToken && amount > escrowToken.amount) {
+        errors.push(`${tokenSymbol} amount (${amount}) exceeds escrow balance (${escrowToken.amount})`);
+        continue;
+      }
+
+      // Convert to vault token
+      const converted = convertToken(tokenSymbol, amount, selectedVault.maker_token);
+      totalReplenishInVaultToken += converted;
+    }
+
+    if (errors.length > 0) {
       toast({
-        title: "No Tokens Selected",
-        description: "Please select at least one token to replenish",
-        variant: "destructive",
+        title: "Validation Error",
+        description: errors.join('. '),
+        variant: "destructive"
       });
       return;
     }
 
+    // Calculate orchestrator deficit (Total pre-slashed - orchestrator balance)
+    const deficit = Math.max(0, selectedVault.total_pre_slashed - selectedVault.orchestrator_balance);
+    
+    if (totalReplenishInVaultToken > deficit) {
+      toast({
+        title: "Validation Error",
+        description: `Total replenish amount (${totalReplenishInVaultToken.toFixed(6)} ${selectedVault.maker_token}) exceeds deficit (${deficit.toFixed(6)} ${selectedVault.maker_token})`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Update orchestrator balance for the specific vault
+    const newOrchestratorBalance = (selectedVault.total_allocated - selectedVault.utilized_amount) + totalReplenishInVaultToken;
+    
+    // Update vault in sharedVaults
+    if (sharedVaults && onVaultsUpdate) {
+      const updatedVaults = sharedVaults.map(v => 
+        v.vault_name === selectedVault.vault_name
+          ? { ...v, orchestrator_balance: v.orchestrator_balance + totalReplenishInVaultToken }
+          : v
+      );
+      onVaultsUpdate(updatedVaults);
+    }
+
+    // Update escrow tokens
+    if (escrowTokens && onEscrowTokensUpdate) {
+      const updatedEscrowTokens = escrowTokens.map(token => {
+        if (selectedTokens.includes(token.token_symbol)) {
+          const usedAmount = parseFloat(tokenAmounts[token.token_symbol] || '0');
+          const newAmount = token.amount - usedAmount;
+          const tokenPrice = TOKEN_PRICES[token.token_symbol] || 1;
+          return {
+            ...token,
+            amount: newAmount,
+            usd_value: newAmount * tokenPrice
+          };
+        }
+        return token;
+      });
+      onEscrowTokensUpdate(updatedEscrowTokens);
+    }
+
+    // Show success message with details
+    const replenishDetails = selectedTokens.map(tokenSymbol => {
+      const amount = tokenAmounts[tokenSymbol];
+      const converted = calculateConversion(tokenSymbol, amount, selectedVault.maker_token);
+      return `${amount} ${tokenSymbol} (≈ ${converted} ${selectedVault.maker_token})`;
+    }).join(', ');
+
     toast({
-      title: "Replenish Successful",
-      description: `Replenished ${selectedVault.vault_name} using ${selectedTokens.join(', ')}`,
+      title: "Vault Replenished",
+      description: `Successfully replenished ${selectedVault.vault_name} using ${replenishDetails}`,
     });
 
+    // Close dialog and reset selection
     setReplenishDialogOpen(false);
-  };
-
-  const handleTokenToggle = (token: string) => {
-    setSelectedTokens(prev => 
-      prev.includes(token) 
-        ? prev.filter(t => t !== token)
-        : [...prev, token]
-    );
+    setSelectedTokens([]);
+    setTokenAmounts({});
+    setSelectedVault(null);
   };
 
   const formatTime = (seconds: number) => {
@@ -478,7 +605,9 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
       total_allocated: vault.total_pre_slashed,
       utilization_percentage: ((vault.total_pre_slashed - vault.orchestrator_balance) / vault.total_pre_slashed) * 100,
       orchestrator_deficit: orchestratorDeficit,
-      escrow_balance: vault.escrow_amount
+      escrow_balance: vault.escrow_amount,
+      total_pre_slashed: vault.total_pre_slashed,
+      orchestrator_balance: vault.orchestrator_balance
     };
     
     setSelectedVault(adaptedVault);
@@ -676,21 +805,6 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Escrow Balance Display */}
-            <div className="p-4 bg-muted rounded-lg space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">
-                  Current {selectedVault?.maker_token} Escrow Balance
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {selectedVault?.maker_token}
-                </span>
-              </div>
-              <p className="text-2xl font-bold">
-                {selectedVault?.escrow_balance.toLocaleString()} {selectedVault?.maker_token}
-              </p>
-            </div>
-
             {/* Orchestrator Deficit */}
             <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
               <div className="flex items-start gap-2">
@@ -698,10 +812,10 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                 <div className="flex-1">
                   <p className="text-sm font-medium">Orchestrator Deficit</p>
                   <p className="text-lg font-bold text-destructive">
-                    {selectedVault?.orchestrator_deficit.toLocaleString()} {selectedVault?.maker_token}
+                    {Math.max(0, (selectedVault?.total_pre_slashed || 0) - (selectedVault?.orchestrator_balance || 0)).toLocaleString()} {selectedVault?.maker_token}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Maximum replenish amount allowed (cannot exceed total pre-slashed: {selectedVault?.total_allocated.toLocaleString()} {selectedVault?.maker_token})
+                    Maximum replenish amount allowed (cannot exceed total pre-slashed: {selectedVault?.total_pre_slashed.toLocaleString()} {selectedVault?.maker_token})
                   </p>
                 </div>
               </div>
@@ -710,23 +824,45 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
             {/* Token Multi-Selection */}
             <div className="space-y-3">
               <Label>Replenish Using Tokens (Multi-select)</Label>
-              <div className="space-y-2 border rounded-lg p-3">
-                {availableTokens.map((token) => (
-                  <div key={token.symbol} className="flex items-center space-x-3 py-2">
-                    <Checkbox
-                      id={`token-${token.symbol}`}
-                      checked={selectedTokens.includes(token.symbol)}
-                      onCheckedChange={() => handleTokenToggle(token.symbol)}
-                    />
-                    <label
-                      htmlFor={`token-${token.symbol}`}
-                      className="flex-1 flex justify-between items-center cursor-pointer"
-                    >
-                      <span className="font-medium">{token.symbol}</span>
-                      <span className="text-xs text-muted-foreground">
-                        Balance: {token.escrow_balance.toLocaleString()} {token.symbol}
-                      </span>
-                    </label>
+              <div className="space-y-3 border rounded-lg p-3 max-h-96 overflow-y-auto">
+                {escrowTokens?.map((token) => (
+                  <div key={token.token_symbol} className="space-y-2">
+                    <div className="flex items-center space-x-3 py-2">
+                      <Checkbox
+                        id={`token-${token.token_symbol}`}
+                        checked={selectedTokens.includes(token.token_symbol)}
+                        onCheckedChange={() => handleTokenToggle(token.token_symbol)}
+                      />
+                      <label
+                        htmlFor={`token-${token.token_symbol}`}
+                        className="flex-1 flex justify-between items-center cursor-pointer"
+                      >
+                        <span className="font-medium">{token.token_symbol}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Balance: {token.amount.toLocaleString()} {token.token_symbol}
+                        </span>
+                      </label>
+                    </div>
+                    
+                    {selectedTokens.includes(token.token_symbol) && (
+                      <div className="ml-9 space-y-1">
+                        <Input
+                          type="number"
+                          placeholder={`Enter ${token.token_symbol} amount`}
+                          value={tokenAmounts[token.token_symbol] || ''}
+                          onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
+                          step="0.000001"
+                          min="0"
+                          max={token.amount}
+                          className="w-full"
+                        />
+                        {tokenAmounts[token.token_symbol] && parseFloat(tokenAmounts[token.token_symbol]) > 0 && selectedVault && (
+                          <p className="text-xs text-muted-foreground">
+                            ≈ {calculateConversion(token.token_symbol, tokenAmounts[token.token_symbol], selectedVault.maker_token)} {selectedVault.maker_token}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -251,6 +251,7 @@ export default function OperatorDashboard() {
                       sharedVaults={sharedVaults}
                       onVaultsUpdate={setSharedVaults}
                       escrowTokens={escrowTokens}
+                      onEscrowTokensUpdate={setEscrowTokens}
                     />
                   </TabsContent>
                   
