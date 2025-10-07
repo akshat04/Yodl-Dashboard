@@ -111,7 +111,7 @@ export function ClaimFeeTab({ unclaimedFees, setUnclaimedFees }: ClaimFeeTabProp
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Summary Card */}
-          <div className="p-6 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg border-2 border-primary/20">
+          <div className="p-6 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Unclaimed Value</p>
@@ -130,7 +130,7 @@ export function ClaimFeeTab({ unclaimedFees, setUnclaimedFees }: ClaimFeeTabProp
             {unclaimedFees.map((fee) => (
               <div 
                 key={fee.id} 
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between p-4 rounded-lg hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
                   <div className="h-12 w-12 rounded-full bg-background border-2 border-border flex items-center justify-center overflow-hidden">

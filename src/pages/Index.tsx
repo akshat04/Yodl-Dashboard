@@ -8,7 +8,7 @@ import yodlLogo from "@/assets/yodl-logo.png";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -41,7 +41,7 @@ const Index = () => {
             {/* Login Cards */}
             <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
               {/* Curator Login */}
-              <Card className="border-2 border-success/30 bg-card/95 backdrop-blur-sm hover:border-success/50 transition-all duration-300 hover:shadow-xl group">
+              <Card className="glass-success border-2 border-success/30 hover:border-success/50 transition-all duration-300 hover:shadow-xl group">
                 <CardHeader className="text-center pb-4">
                   <div className="mx-auto mb-4 p-4 bg-success/20 rounded-full w-fit">
                     <Shield className="h-8 w-8 text-success" />
@@ -70,9 +70,9 @@ const Index = () => {
                      <Button 
                        className="w-full bg-success text-success-foreground hover:bg-success/90 group-hover:scale-105 transition-all duration-300"
                        size="lg"
-                       onClick={() => navigate('/auth')}
+                       onClick={() => navigate(user && hasRole('curator') ? '/dashboard' : '/auth')}
                      >
-                       {user ? 'Go to Dashboard' : 'Login as Curator'}
+                       {user && hasRole('curator') ? 'Go to Dashboard' : 'Login as Curator'}
                        <ArrowRight className="ml-2 h-4 w-4" />
                      </Button>
                      <Button 
@@ -89,7 +89,7 @@ const Index = () => {
               </Card>
 
               {/* Operator Login */}
-              <Card className="border-2 border-accent/30 bg-card/95 backdrop-blur-sm hover:border-accent/50 transition-all duration-300 hover:shadow-xl group">
+              <Card className="glass-accent border-2 border-accent/30 hover:border-accent/50 transition-all duration-300 hover:shadow-xl group">
                 <CardHeader className="text-center pb-4">
                   <div className="mx-auto mb-4 p-4 bg-accent/20 rounded-full w-fit">
                     <Users className="h-8 w-8 text-accent" />
@@ -118,9 +118,9 @@ const Index = () => {
                      <Button 
                        className="w-full bg-accent text-accent-foreground hover:bg-accent/90 group-hover:scale-105 transition-all duration-300"
                        size="lg"
-                       onClick={() => navigate('/auth')}
+                       onClick={() => navigate(user && hasRole('operator') ? '/dashboard' : '/auth')}
                      >
-                       {user ? 'Go to Dashboard' : 'Login as Operator'}
+                       {user && hasRole('operator') ? 'Go to Dashboard' : 'Login as Operator'}
                        <ArrowRight className="ml-2 h-4 w-4" />
                      </Button>
                      <Button 
@@ -160,7 +160,7 @@ const Index = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/20 py-8">
+      <footer className="bg-background border-t border-border/20 py-8">
         <div className="container mx-auto px-6 text-center text-muted-foreground">
           <p>&copy; 2025 Yodl. Yield Orchestration & Distribution Layer.</p>
         </div>

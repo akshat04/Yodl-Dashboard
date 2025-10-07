@@ -676,7 +676,7 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
             return (
               <Collapsible key={vault.id}>
                 <div 
-                  className={`border rounded-lg transition-all duration-500 ease-in-out ${
+                  className={`rounded-lg transition-all duration-500 ease-in-out ${
                     isRebalancing ? 'animate-fade-in' : ''
                   }`}
                   style={{

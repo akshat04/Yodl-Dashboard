@@ -277,7 +277,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
             usd_value: (TOKEN_PRICES[t.token_symbol] || 1) * t.amount,
             isListed: listedTokens.has(t.token_symbol)
           }));
-        } catch { /* empty */ }
+        } catch {}
       }
 
       setEscrowTokens(initialTokens);
@@ -392,7 +392,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
             usd_value: (TOKEN_PRICES[t.token_symbol] || 1) * t.amount,
             isListed: listedTokens.has(t.token_symbol)
           }));
-        } catch { /* empty */ }
+        } catch {}
       }
 
       setEscrowTokens(initialTokens);
@@ -772,7 +772,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
               
               return (
                 <Collapsible key={balance.id}>
-                  <CollapsibleTrigger className="flex items-center gap-4 w-full p-4 border rounded-lg hover:bg-muted/50">
+                  <CollapsibleTrigger className="flex items-center gap-4 w-full p-4 rounded-lg hover:bg-muted/50">
                     <ChevronDown className="h-4 w-4 flex-shrink-0" />
                     
                     {/* Left Side - Vault Info */}
@@ -794,7 +794,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                   </CollapsibleTrigger>
                   
                   <CollapsibleContent>
-                    <div className="p-4 pt-0 space-y-4 bg-muted/20 border-x border-b rounded-b-lg">
+                    <div className="p-4 pt-0 space-y-4 bg-muted/20 rounded-b-lg">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">Total Staked</p>

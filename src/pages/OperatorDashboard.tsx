@@ -236,12 +236,12 @@ export default function OperatorDashboard() {
               {!hasRole('curator') && (
                 <Tabs defaultValue="rebalance" className="w-full">
                   <TabsList className="grid w-full grid-cols-6 mb-6">
-                    <TabsTrigger value="rebalance">Rebalance/Replenish</TabsTrigger>
-                    <TabsTrigger value="reserve">Reserve</TabsTrigger>
-                    <TabsTrigger value="movefund">Move Fund to Escrow</TabsTrigger>
-                    <TabsTrigger value="challenge">Challenge</TabsTrigger>
-                    <TabsTrigger value="liquidations">Liquidations</TabsTrigger>
-                    <TabsTrigger value="claim">Claim Fee</TabsTrigger>
+                    <TabsTrigger value="rebalance" className="tab-trigger-black">Rebalance/Replenish</TabsTrigger>
+                    <TabsTrigger value="reserve" className="tab-trigger-black">Reserve</TabsTrigger>
+                    <TabsTrigger value="movefund" className="tab-trigger-black">Move Fund to Escrow</TabsTrigger>
+                    <TabsTrigger value="challenge" className="tab-trigger-black">Challenge</TabsTrigger>
+                    <TabsTrigger value="liquidations" className="tab-trigger-black">Liquidations</TabsTrigger>
+                    <TabsTrigger value="claim" className="tab-trigger-black">Claim Fee</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="rebalance" forceMount className="mt-6">

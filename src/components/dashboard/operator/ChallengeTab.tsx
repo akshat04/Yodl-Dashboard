@@ -123,7 +123,7 @@ export function ChallengeTab() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Total Due Summary */}
-          <div className="p-6 bg-muted/50 rounded-lg border-2 border-border">
+          <div className="p-6 bg-muted/50 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Amount Due</p>
@@ -147,7 +147,7 @@ export function ChallengeTab() {
               challenges.map((challenge) => (
                 <div 
                   key={challenge.id}
-                  className="flex items-center justify-between p-4 border-2 rounded-lg border-border hover:bg-muted/50 transition-colors"
+                  className="flex items-center justify-between p-4 rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
                     <Clock className="h-8 w-8 text-warning" />

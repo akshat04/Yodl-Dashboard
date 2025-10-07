@@ -199,7 +199,7 @@ export default function Auth() {
               </Button>
             </div>
             
-            <Card className="w-full border-2 border-accent/30 bg-card/95 backdrop-blur-sm">
+            <Card className="w-full glass-card border-2 border-accent/30">
               <CardHeader className="text-center">
                 <Badge variant="secondary" className="mb-4 bg-success/20 text-success-foreground border-success/30 mx-auto w-fit">
                   {isLogin ? 'Sign In' : 'Join Yodl'}
@@ -217,14 +217,14 @@ export default function Auth() {
                   <TabsTrigger 
                     value="login" 
                     onClick={() => setIsLogin(true)}
-                    className="data-[state=active]:bg-accent/20 data-[state=active]:text-accent-foreground"
+                    className="data-[state=active]:bg-accent/90 data-[state=active]:text-accent-foreground"
                   >
                     Login
                   </TabsTrigger>
                   <TabsTrigger 
                     value="signup" 
                     onClick={() => setIsLogin(false)}
-                    className="data-[state=active]:bg-success/20 data-[state=active]:text-success-foreground"
+                    className="data-[state=active]:bg-success/90 data-[state=active]:text-success-foreground"
                   >
                     Sign Up
                   </TabsTrigger>
@@ -239,7 +239,7 @@ export default function Auth() {
                       placeholder="Enter your email"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={errors.email ? 'border-destructive' : ''}
+                      className={`glass-card ${errors.email ? 'border-destructive' : ''}`}
                     />
                     {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
                   </div>
@@ -252,7 +252,7 @@ export default function Auth() {
                       placeholder="Enter your password"
                       value={formData.password}
                       onChange={(e) => handleInputChange('password', e.target.value)}
-                      className={errors.password ? 'border-destructive' : ''}
+                      className={`glass-card ${errors.password ? 'border-destructive' : ''}`}
                     />
                     {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                   </div>
@@ -260,7 +260,7 @@ export default function Auth() {
                   <Button 
                     onClick={handleLogin} 
                     disabled={loading}
-                    className="w-full bg-success text-success-foreground hover:bg-success/90"
+                    className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
                   >
                     {loading ? 'Signing In...' : 'Sign In'}
                   </Button>
@@ -274,7 +274,7 @@ export default function Auth() {
                       placeholder="Enter your full name"
                       value={formData.fullName}
                       onChange={(e) => handleInputChange('fullName', e.target.value)}
-                      className={errors.fullName ? 'border-destructive' : ''}
+                      className={`glass-card ${errors.fullName ? 'border-destructive' : ''}`}
                     />
                     {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
                   </div>
@@ -287,7 +287,7 @@ export default function Auth() {
                       placeholder="Enter your email"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={errors.email ? 'border-destructive' : ''}
+                      className={`glass-card ${errors.email ? 'border-destructive' : ''}`}
                     />
                     {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
                   </div>
@@ -300,7 +300,7 @@ export default function Auth() {
                       placeholder="Create a password"
                       value={formData.password}
                       onChange={(e) => handleInputChange('password', e.target.value)}
-                      className={errors.password ? 'border-destructive' : ''}
+                      className={`glass-card ${errors.password ? 'border-destructive' : ''}`}
                     />
                     {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
                   </div>
@@ -311,7 +311,7 @@ export default function Auth() {
                       value={formData.role}
                       onValueChange={(value) => handleInputChange('role', value)}
                     >
-                      <SelectTrigger className={errors.role ? 'border-destructive' : ''}>
+                      <SelectTrigger className={`glass-card ${errors.role ? 'border-destructive' : ''}`}>
                         <SelectValue placeholder="Select your role" />
                       </SelectTrigger>
                       <SelectContent>

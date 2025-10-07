@@ -78,7 +78,7 @@ export function MoveFundToEscrowTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           {escrowTransactions.map((tx) => (
-            <div key={tx.id} className="flex items-center justify-between p-3 border rounded-lg">
+            <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>
