@@ -723,7 +723,7 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                   </CollapsibleTrigger>
                   
                   <CollapsibleContent>
-                    <div className="p-4 pt-0 space-y-4 bg-muted/20">
+                    <div className="p-4 pt-0 space-y-4">
                       {/* Vault Details Grid */}
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>

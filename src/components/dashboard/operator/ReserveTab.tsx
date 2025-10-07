@@ -794,7 +794,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                   </CollapsibleTrigger>
                   
                   <CollapsibleContent>
-                    <div className="p-4 pt-0 space-y-4 bg-muted/20 rounded-b-lg">
+                    <div className="p-4 pt-0 space-y-4">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">Total Staked</p>
