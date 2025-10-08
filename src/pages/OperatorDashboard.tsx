@@ -235,7 +235,7 @@ export default function OperatorDashboard() {
             <div className="space-y-6">
               {/* Operator Tabs - Only visible to operators */}
               {!hasRole('curator') && (
-                <Tabs defaultValue="rebalance" className="w-full">
+                <Tabs defaultValue="movefund" className="w-full">
                   <TabsList className="grid w-full grid-cols-7 mb-6">
                     <TabsTrigger value="movefund" className="tab-trigger-black">Trade Settlement</TabsTrigger>
                     <TabsTrigger value="liquidations" className="tab-trigger-black">Liquidations</TabsTrigger>
