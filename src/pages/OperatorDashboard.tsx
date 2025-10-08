@@ -242,7 +242,7 @@ export default function OperatorDashboard() {
                     <TabsTrigger value="rebalance" className="tab-trigger-black">Rebalance/Replenish</TabsTrigger>
                     <TabsTrigger value="reserve" className="tab-trigger-black">Reserve</TabsTrigger>
                     <TabsTrigger value="claim" className="tab-trigger-black">Claim Fee</TabsTrigger>
-                    <TabsTrigger value="challenge" className="tab-trigger-black">Open Challenges</TabsTrigger>
+                    <TabsTrigger value="challenge" className="tab-trigger-black">Challenges</TabsTrigger>
                     <TabsTrigger value="feesetter" className="tab-trigger-black">Fee Setter</TabsTrigger>
                   </TabsList>
                   

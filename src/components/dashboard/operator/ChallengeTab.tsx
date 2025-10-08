@@ -200,7 +200,7 @@ export function ChallengeTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
-            Challenges Yet to be Settled
+            Open Challenges
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
