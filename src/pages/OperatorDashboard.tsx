@@ -13,6 +13,7 @@ import { ClaimFeeTab } from "@/components/dashboard/operator/ClaimFeeTab";
 import { ChallengeTab } from "@/components/dashboard/operator/ChallengeTab";
 import { MoveFundToEscrowTab } from "@/components/dashboard/operator/MoveFundToEscrowTab";
 import { LiquidationsTab } from "@/components/dashboard/operator/LiquidationsTab";
+import { FeeSetterTab } from "@/components/dashboard/operator/FeeSetterTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -235,13 +236,14 @@ export default function OperatorDashboard() {
               {/* Operator Tabs - Only visible to operators */}
               {!hasRole('curator') && (
                 <Tabs defaultValue="rebalance" className="w-full">
-                  <TabsList className="grid w-full grid-cols-6 mb-6">
+                  <TabsList className="grid w-full grid-cols-7 mb-6">
+                    <TabsTrigger value="movefund" className="tab-trigger-black">Trade Settlement</TabsTrigger>
+                    <TabsTrigger value="liquidations" className="tab-trigger-black">Liquidations</TabsTrigger>
                     <TabsTrigger value="rebalance" className="tab-trigger-black">Rebalance/Replenish</TabsTrigger>
                     <TabsTrigger value="reserve" className="tab-trigger-black">Reserve</TabsTrigger>
-                    <TabsTrigger value="movefund" className="tab-trigger-black">Move Fund to Escrow</TabsTrigger>
-                    <TabsTrigger value="challenge" className="tab-trigger-black">Challenge</TabsTrigger>
-                    <TabsTrigger value="liquidations" className="tab-trigger-black">Liquidations</TabsTrigger>
                     <TabsTrigger value="claim" className="tab-trigger-black">Claim Fee</TabsTrigger>
+                    <TabsTrigger value="challenge" className="tab-trigger-black">Open Challenges</TabsTrigger>
+                    <TabsTrigger value="feesetter" className="tab-trigger-black">Fee Setter</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="rebalance" forceMount className="mt-6">
@@ -281,6 +283,10 @@ export default function OperatorDashboard() {
                       unclaimedFees={unclaimedFees}
                       setUnclaimedFees={setUnclaimedFees}
                     />
+                  </TabsContent>
+                  
+                  <TabsContent value="feesetter" className="mt-6">
+                    <FeeSetterTab />
                   </TabsContent>
                 </Tabs>
               )}

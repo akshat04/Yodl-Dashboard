@@ -25,6 +25,8 @@ interface ClaimFeeTabProps {
 
 export function ClaimFeeTab({ unclaimedFees, setUnclaimedFees }: ClaimFeeTabProps) {
   const [loading, setLoading] = useState(true);
+  const [apy] = useState(12.5); // Mock APY value
+  const [totalClaimedFee, setTotalClaimedFee] = useState(0);
   const { toast } = useToast();
 
   const tokenLogos: Record<string, string> = {
@@ -71,6 +73,9 @@ export function ClaimFeeTab({ unclaimedFees, setUnclaimedFees }: ClaimFeeTabProp
     // Remove the specific fee from the list
     setUnclaimedFees(unclaimedFees.filter(f => f.id !== feeId));
     
+    // Add to total claimed fee
+    setTotalClaimedFee(prev => prev + usdValue);
+    
     toast({
       title: "Fee Claimed",
       description: `Claimed ${amount.toLocaleString()} ${tokenSymbol} ($${usdValue.toLocaleString()})`,
@@ -79,6 +84,9 @@ export function ClaimFeeTab({ unclaimedFees, setUnclaimedFees }: ClaimFeeTabProp
 
   const handleClaimAll = () => {
     const total = unclaimedFees.reduce((sum, f) => sum + f.usd_value, 0);
+    
+    // Add to total claimed fee
+    setTotalClaimedFee(prev => prev + total);
     
     // Clear all fees
     setUnclaimedFees([]);
@@ -104,9 +112,14 @@ export function ClaimFeeTab({ unclaimedFees, setUnclaimedFees }: ClaimFeeTabProp
               <DollarSign className="h-5 w-5" />
               Unclaimed Fees by Token
             </CardTitle>
-            <Badge variant="default" className="text-lg">
-              ${totalUnclaimed.toLocaleString()} Total
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-lg">
+                APY: {apy.toFixed(1)}%
+              </Badge>
+              <Badge variant="default" className="text-lg">
+                ${totalClaimedFee.toLocaleString()} Total Claimed Fee
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

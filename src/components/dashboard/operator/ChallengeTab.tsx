@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Clock, DollarSign } from "lucide-react";
+import { AlertTriangle, DollarSign, ExternalLink } from "lucide-react";
 
 interface Challenge {
   id: string;
@@ -12,6 +14,22 @@ interface Challenge {
   operator: {
     name: string;
   };
+}
+
+interface OpenChallenge {
+  id: string;
+  transaction_hash: string;
+  token: string;
+  amount_pending: number;
+  usd_value: number;
+}
+
+interface ClosedChallenge {
+  id: string;
+  transaction_hash: string;
+  token: string;
+  amount_disbursed: number;
+  usd_value: number;
 }
 
 export function ChallengeTab() {
@@ -96,17 +114,81 @@ export function ChallengeTab() {
   };
 
   const totalDue = challenges.reduce((sum, c) => sum + c.amount_due, 0);
+  const totalReserveYODL = 5000000;
+  const reserveUSDValue = 2500000;
+  const coverageRatio = totalDue > 0 ? (reserveUSDValue / totalDue) * 100 : 0;
 
-  const formatDueDate = (dueDateStr: string | null) => {
-    if (!dueDateStr) return "No due date";
-    const dueDate = new Date(dueDateStr);
-    const now = new Date();
-    const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return "Due today";
-    if (diffDays < 0) return `${Math.abs(diffDays)} days ago`;
-    return `Due in ${diffDays} days`;
+  const getCoverageRatioColor = (ratio: number) => {
+    if (ratio >= 100) return "text-green-500";
+    if (ratio >= 50) return "text-yellow-500";
+    return "text-red-500";
   };
+
+  const truncateHash = (hash: string) => {
+    return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+  };
+
+  const openChallenges: OpenChallenge[] = [
+    {
+      id: '1',
+      transaction_hash: '0x1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t',
+      token: 'YODL',
+      amount_pending: 15000,
+      usd_value: 7500
+    },
+    {
+      id: '2',
+      transaction_hash: '0x2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u',
+      token: 'USDC',
+      amount_pending: 5000,
+      usd_value: 5000
+    },
+    {
+      id: '3',
+      transaction_hash: '0x3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v',
+      token: 'ETH',
+      amount_pending: 3.5,
+      usd_value: 8750
+    },
+    {
+      id: '4',
+      transaction_hash: '0x4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w',
+      token: 'USDT',
+      amount_pending: 6200,
+      usd_value: 6200
+    },
+    {
+      id: '5',
+      transaction_hash: '0x5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x',
+      token: 'DAI',
+      amount_pending: 4500,
+      usd_value: 4500
+    }
+  ];
+
+  const closedChallenges: ClosedChallenge[] = [
+    {
+      id: '1',
+      transaction_hash: '0x9z8y7x6w5v4u3t2s1r0q9p8o7n6m5l4k3j2h1g0f',
+      token: 'USDC',
+      amount_disbursed: 8500,
+      usd_value: 8500
+    },
+    {
+      id: '2',
+      transaction_hash: '0x8y7x6w5v4u3t2s1r0q9p8o7n6m5l4k3j2h1g0f9e',
+      token: 'YODL',
+      amount_disbursed: 12000,
+      usd_value: 6000
+    },
+    {
+      id: '3',
+      transaction_hash: '0x7x6w5v4u3t2s1r0q9p8o7n6m5l4k3j2h1g0f9e8d',
+      token: 'ETH',
+      amount_disbursed: 2.8,
+      usd_value: 7000
+    }
+  ];
 
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
@@ -122,51 +204,134 @@ export function ChallengeTab() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Total Due Summary */}
+          {/* Enhanced Summary with 4 Metrics */}
           <div className="p-6 bg-muted/50 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Total Amount Due */}
+              <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Total Amount Due</p>
-                <p className="text-4xl font-bold text-foreground">${totalDue.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-3xl font-bold text-foreground">${totalDue.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">
                   {challenges.length} challenge{challenges.length !== 1 ? 's' : ''} pending
                 </p>
               </div>
-              <DollarSign className="h-16 w-16 text-muted-foreground/30" />
+
+              {/* Total Reserve (YODL) */}
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Total Reserve (YODL)</p>
+                <p className="text-3xl font-bold text-foreground">{totalReserveYODL.toLocaleString()} YODL</p>
+                <p className="text-xs text-muted-foreground">Available reserves</p>
+              </div>
+
+              {/* USD Value of Reserve */}
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">USD Value of Reserve</p>
+                <p className="text-3xl font-bold text-foreground">${reserveUSDValue.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Current market value</p>
+              </div>
+
+              {/* Coverage Ratio */}
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Coverage Ratio</p>
+                <p className={`text-3xl font-bold ${getCoverageRatioColor(coverageRatio)}`}>
+                  {coverageRatio.toFixed(1)}%
+                </p>
+                <p className="text-xs text-muted-foreground">Reserve / Amount Due</p>
+              </div>
             </div>
           </div>
 
-          {/* Individual Challenges */}
-          <div className="space-y-3">
-            {challenges.length === 0 ? (
-              <div className="text-center py-12">
-                <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">No pending challenges</p>
+          {/* Nested Tabs for Open and Closed Challenges */}
+          <Tabs defaultValue="open" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="open" className="data-[state=inactive]:text-black">Open</TabsTrigger>
+              <TabsTrigger value="closed" className="data-[state=inactive]:text-black">Closed</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="open" className="mt-4">
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Transaction (#)</TableHead>
+                      <TableHead>Token</TableHead>
+                      <TableHead className="text-right">Amount Pending</TableHead>
+                      <TableHead className="text-right">USD Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {openChallenges.map((challenge) => (
+                      <TableRow key={challenge.id}>
+                        <TableCell>
+                          <a
+                            href={`https://etherscan.io/tx/${challenge.transaction_hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-black hover:underline"
+                          >
+                            {truncateHash(challenge.transaction_hash)}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </TableCell>
+                        <TableCell className="font-medium">{challenge.token}</TableCell>
+                        <TableCell className="text-right">
+                          {challenge.amount_pending.toLocaleString(undefined, { 
+                            minimumFractionDigits: challenge.token === 'ETH' ? 2 : 0,
+                            maximumFractionDigits: challenge.token === 'ETH' ? 2 : 0
+                          })}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          ${challenge.usd_value.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            ) : (
-              challenges.map((challenge) => (
-                <div 
-                  key={challenge.id}
-                  className="flex items-center justify-between p-4 rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <Clock className="h-8 w-8 text-warning" />
-                    <div>
-                      <p className="font-medium text-lg">{challenge.operator.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Challenge ID: {challenge.challenge_id || 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-2xl text-foreground">
-                      ${challenge.amount_due.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+            </TabsContent>
+
+            <TabsContent value="closed" className="mt-4">
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Transaction (#)</TableHead>
+                      <TableHead>Token</TableHead>
+                      <TableHead className="text-right">Amount Disbursed</TableHead>
+                      <TableHead className="text-right">USD Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {closedChallenges.map((challenge) => (
+                      <TableRow key={challenge.id}>
+                        <TableCell>
+                          <a
+                            href={`https://etherscan.io/tx/${challenge.transaction_hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-black hover:underline"
+                          >
+                            {truncateHash(challenge.transaction_hash)}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </TableCell>
+                        <TableCell className="font-medium">{challenge.token}</TableCell>
+                        <TableCell className="text-right">
+                          {challenge.amount_disbursed.toLocaleString(undefined, { 
+                            minimumFractionDigits: challenge.token === 'ETH' ? 2 : 0,
+                            maximumFractionDigits: challenge.token === 'ETH' ? 2 : 0
+                          })}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          ${challenge.usd_value.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>

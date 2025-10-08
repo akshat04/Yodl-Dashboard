@@ -11,8 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
-import { Shield, Wallet, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
+import { Shield, Wallet, ChevronDown, TrendingUp, TrendingDown, Info, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Reserve Tab Component
@@ -82,12 +83,24 @@ interface SharedVaultData {
   total_pre_slashed: number;
 }
 
+interface CreditLineData {
+  id: string;
+  vault_name: string;
+  vault_address: string;
+  token: string;
+  delegated: number;
+  borrowed_quantity: number;
+  available_credit_percent: number;
+  interest_percent: number;
+}
+
 export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEscrowTokens, onEscrowTokensUpdate }: ReserveTabProps) {
   const [yodlBalances, setYodlBalances] = useState<YodlBalance[]>([]);
   const [preSlashedData, setPreSlashedData] = useState<PreSlashedData[]>([]);
   const [delegations, setDelegations] = useState<DelegationData[]>([]);
   const [vaults, setVaults] = useState<VaultData[]>([]);
   const [escrowTokens, setEscrowTokens] = useState<EscrowToken[]>([]);
+  const [creditLineData, setCreditLineData] = useState<CreditLineData[]>([]);
   const [loading, setLoading] = useState(true);
   const [slashDialogOpen, setSlashDialogOpen] = useState(false);
   const [selectedVault, setSelectedVault] = useState<YodlBalance | null>(null);
@@ -100,6 +113,8 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
   const [swapSelectedToken, setSwapSelectedToken] = useState<EscrowToken | null>(null);
   const [swapTargetVault, setSwapTargetVault] = useState<string>("");
   const [swapAmount, setSwapAmount] = useState("");
+  const [sortColumn, setSortColumn] = useState<'available_credit' | 'interest' | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -134,6 +149,129 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
       onEscrowTokensUpdate(escrowTokens);
     }
   }, [escrowTokens, onEscrowTokensUpdate]);
+
+  // Generate credit line data when yodlBalances and delegations are loaded
+  useEffect(() => {
+    if (yodlBalances.length > 0 && delegations.length > 0) {
+      const TOKEN_PRICES: Record<string, number> = {
+        'USDC': 1,
+        'USDT': 1,
+        'DAI': 1,
+        'WETH': 4480.49,
+        'WBTC': 120409.15,
+        'BNB': 1131.35,
+        'MATIC': 0.24
+      };
+
+      const creditData: CreditLineData[] = yodlBalances
+        .map((balance) => {
+          const delegation = delegations.find(d => d.token_type === balance.maker_token);
+          const tokenPrice = TOKEN_PRICES[balance.maker_token] || 1;
+          const availableCredit = balance.total_slashable > 0 
+            ? ((balance.total_slashable - balance.total_pre_slashed) / balance.total_slashable) * 100 
+            : 0;
+          
+          return {
+            id: balance.id,
+            vault_name: `${balance.curator_name}: ${balance.maker_token} Vault`,
+            vault_address: `0x${Math.random().toString(16).slice(2, 42)}`,
+            token: balance.maker_token,
+            delegated: delegation?.usd_value || 0,
+            borrowed_quantity: balance.total_pre_slashed,
+            available_credit_percent: availableCredit,
+            interest_percent: 0,
+          };
+        })
+        .filter(item => item.delegated > 0);
+
+      setCreditLineData(creditData);
+      loadInterestRates();
+    }
+  }, [yodlBalances, delegations]);
+
+  const loadInterestRates = () => {
+    const stored = localStorage.getItem('vaultFees');
+    if (stored) {
+      try {
+        const feeData = JSON.parse(stored);
+        setCreditLineData(prev => prev.map(vault => {
+          // Find fee by matching mapped_to field to vault_name
+          const feeInfo = feeData.find((f: any) => 
+            f.mapped_to === vault.vault_name
+          );
+          return {
+            ...vault,
+            interest_percent: feeInfo?.fee_percentage || vault.interest_percent
+          };
+        }));
+      } catch (error) {
+        console.error('Error loading interest rates:', error);
+      }
+    }
+  };
+
+  // Listen for storage changes to update interest rates in real-time
+  useEffect(() => {
+    const handleStorageChange = () => {
+      loadInterestRates();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    // Also listen for custom event from same tab
+    window.addEventListener('vaultFeesUpdated', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('vaultFeesUpdated', handleStorageChange);
+    };
+  }, [creditLineData]);
+
+  const truncateAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const handleSort = (column: 'available_credit' | 'interest') => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to descending
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortedCreditLineData = () => {
+    if (!sortColumn) return creditLineData;
+
+    return [...creditLineData].sort((a, b) => {
+      let aValue: number;
+      let bValue: number;
+
+      if (sortColumn === 'available_credit') {
+        aValue = a.available_credit_percent;
+        bValue = b.available_credit_percent;
+      } else {
+        aValue = a.interest_percent;
+        bValue = b.interest_percent;
+      }
+
+      if (sortDirection === 'asc') {
+        return aValue - bValue;
+      } else {
+        return bValue - aValue;
+      }
+    });
+  };
+
+  const renderSortIcon = (column: 'available_credit' | 'interest') => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 inline" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1 inline" />
+      : <ArrowDown className="h-4 w-4 ml-1 inline" />;
+  };
 
   const fetchData = async () => {
     try {
@@ -459,6 +597,20 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
     setSlashAmount("");
   };
 
+  const handleBuyAndStake = () => {
+    toast({
+      title: "Buy and Stake",
+      description: "Opening YODL purchase interface...",
+    });
+  };
+
+  const handleBorrow = (vault: CreditLineData) => {
+    toast({
+      title: "Borrow from Vault",
+      description: `Initiating borrow from ${vault.vault_name}`,
+    });
+  };
+
   const handleRestore = (token: EscrowToken) => {
     setSelectedToken(token);
     setSelectedRestoreVault("");
@@ -728,9 +880,15 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
     return sum + ((v.escrow_amount + v.orchestrator_balance) * price);
   }, 0);
   
-  const grossProfitLoss = totalAssetsInCustody - totalAssetsSlashed;
-  const profitLossPercentage = totalAssetsSlashed > 0 ? (grossProfitLoss / totalAssetsSlashed) * 100 : 0;
-  const isProfit = grossProfitLoss >= 0;
+  // Calculate P/L metrics
+  const unrealisedPL = totalAssetsInCustody - totalAssetsSlashed;
+  const unrealisedPercentage = totalAssetsSlashed > 0 ? (unrealisedPL / totalAssetsSlashed) * 100 : 0;
+  const isUnrealisedProfit = unrealisedPL >= 0;
+  
+  // Realised P/L (placeholder - would need historical trade data)
+  const realisedPL = 0; // This would be calculated from completed trades
+  const isRealisedProfit = realisedPL >= 0;
+  
   const numAssetsSlashed = vaults.filter(v => v.total_pre_slashed > 0).length;
   const numAssetsHeld = new Set(vaults.map(v => v.maker_token)).size;
 
@@ -741,95 +899,160 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            Vault Reserve Balance
+            Borrowed Funds
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-primary/10 rounded-lg">
-              <p className="text-sm text-muted-foreground">Total Staked</p>
-              <p className="text-2xl font-bold">${totalYodlUsd.toLocaleString()}</p>
-            </div>
-            <div className="p-4 bg-primary/10 rounded-lg space-y-2">
-              <p className="text-sm text-muted-foreground">Total Pre-Slashed vs Total Slashable</p>
-              <p className="text-lg font-bold">
-                ${totalPreSlashedUsd.toLocaleString()} / ${totalSlashableUsd.toLocaleString()}
-              </p>
-              <Progress value={(totalPreSlashedUsd / totalSlashableUsd) * 100} className="h-2" />
-              <p className="text-xs text-muted-foreground">
-                {((totalPreSlashedUsd / totalSlashableUsd) * 100).toFixed(1)}% Utilized
-              </p>
+          {/* Total Slashed Card */}
+          <div className="p-6 bg-primary/10 rounded-lg space-y-4">
+            <h3 className="text-lg font-semibold mb-4">Total Slashed</h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* a. Total USD value of Pre-slashed */}
+              <div>
+                <p className="text-xs text-muted-foreground">Total Pre-Slashed (USD)</p>
+                <p className="text-xl font-bold">${totalPreSlashedUsd.toLocaleString()}</p>
+              </div>
+              
+              {/* b. Total USD value of Delegation */}
+              <div>
+                <p className="text-xs text-muted-foreground">Total Delegation (USD)</p>
+                <p className="text-xl font-bold">${delegations.reduce((sum, d) => sum + d.usd_value, 0).toLocaleString()}</p>
+              </div>
+              
+              {/* c. % of Credit Line Available */}
+              <div>
+                <p className="text-xs text-muted-foreground">Credit Line Available</p>
+                <p className="text-xl font-bold text-green-600">
+                  {totalSlashableUsd > 0 ? (((totalSlashableUsd - totalPreSlashedUsd) / totalSlashableUsd) * 100).toFixed(1) : 0}%
+                </p>
+              </div>
+              
+              {/* d. Amount Available (USD) for Loan */}
+              <div>
+                <p className="text-xs text-muted-foreground">Available for Loan</p>
+                <p className="text-xl font-bold">${(totalSlashableUsd - totalPreSlashedUsd).toLocaleString()}</p>
+              </div>
+              
+              {/* e. YODL required */}
+              <div>
+                <p className="text-xs text-muted-foreground">YODL Required</p>
+                <p className="text-xl font-bold">100,000 YODL</p>
+              </div>
+              
+              {/* f. YODL staked */}
+              <div>
+                <p className="text-xs text-muted-foreground">YODL Staked</p>
+                <p className="text-xl font-bold">{totalYodlStaked.toLocaleString()} YODL</p>
+              </div>
+              
+              {/* g. Execution multiplier */}
+              <div>
+                <p className="text-xs text-muted-foreground">Execution Multiplier</p>
+                <p className="text-xl font-bold">2.5x</p>
+              </div>
+              
+              {/* h. Buy and Stake button */}
+              <div className="flex items-end">
+                <Button className="w-full" onClick={handleBuyAndStake}>
+                  Buy and Stake
+                </Button>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-3">
-            {yodlBalances.map((balance) => {
-              const tokenPrice = TOKEN_PRICES[balance.maker_token] || 1;
-              const preSlashedUsd = balance.total_pre_slashed * tokenPrice;
-              const totalSlashableUsd = balance.total_slashable * tokenPrice;
-              const utilizationPercent = totalSlashableUsd > 0 ? (preSlashedUsd / totalSlashableUsd) * 100 : 0;
-              const vaultDisplayName = `${balance.curator_name}: ${balance.maker_token} Vault`;
-              
-              return (
-                <Collapsible key={balance.id}>
-                  <CollapsibleTrigger className="flex items-center gap-4 w-full p-4 rounded-lg hover:bg-muted/50">
-                    <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                    
-                    {/* Left Side - Vault Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-3 mb-2">
-                        <p className="font-medium whitespace-nowrap">{vaultDisplayName}</p>
-                        <p className="text-sm">
-                          {balance.total_pre_slashed.toLocaleString()} {balance.maker_token} / {balance.total_slashable.toLocaleString()} {balance.maker_token}
-                        </p>
-                        <p className="text-sm text-cyan-500 whitespace-nowrap">
-                          (Total Pre-Slashed / Total Slashable)
-                        </p>
-                      </div>
-                      <Progress value={utilizationPercent} className={`h-2 mb-1 transition-all duration-1000 ${balance.isSlashing ? 'animate-pulse' : ''}`} />
-                      <p className="text-xs text-muted-foreground">
-                        Utilization %: {utilizationPercent.toFixed(0)}%
-                      </p>
-                    </div>
-                  </CollapsibleTrigger>
-                  
-                  <CollapsibleContent>
-                    <div className="p-4 pt-0 space-y-4">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Total Staked</p>
-                          <p className="font-medium">{balance.balance.toLocaleString()} YODL</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">USD Value</p>
-                          <p className="font-medium">${balance.usd_value.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Total Pre-Slashed</p>
-                          <p className="font-medium">{balance.total_pre_slashed.toLocaleString()} {balance.maker_token}</p>
-                          <p className="text-xs text-muted-foreground">${preSlashedUsd.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Total Slashable</p>
-                          <p className="font-medium text-green-600">{balance.total_slashable.toLocaleString()} {balance.maker_token}</p>
-                          <p className="text-xs text-muted-foreground">${totalSlashableUsd.toLocaleString()}</p>
-                        </div>
-                      </div>
+          {/* 
+          <div className="p-4 bg-primary/10 rounded-lg space-y-2">
+            <p className="text-sm text-muted-foreground">Total Pre-Slashed vs Total Slashable</p>
+            <p className="text-lg font-bold">
+              ${totalPreSlashedUsd.toLocaleString()} / ${totalSlashableUsd.toLocaleString()}
+            </p>
+            <Progress value={(totalPreSlashedUsd / totalSlashableUsd) * 100} className="h-2" />
+            <p className="text-xs text-muted-foreground">
+              {((totalPreSlashedUsd / totalSlashableUsd) * 100).toFixed(1)}% Utilized
+            </p>
+          </div>
+          */}
 
+          {/* Credit Line Table */}
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold">Credit Line</h3>
+            
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[200px]">Vault Name</TableHead>
+                  <TableHead>Token</TableHead>
+                  <TableHead className="text-right">Delegated</TableHead>
+                  <TableHead className="text-right">Borrowed Quantity</TableHead>
+                  <TableHead 
+                    className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort('available_credit')}
+                  >
+                    Available Credit
+                    {renderSortIcon('available_credit')}
+                  </TableHead>
+                  <TableHead 
+                    className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort('interest')}
+                  >
+                    Interest
+                    {renderSortIcon('interest')}
+                  </TableHead>
+                  <TableHead className="text-center">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {getSortedCreditLineData().map((vault) => (
+                  <TableRow key={vault.id}>
+                    {/* Vault Name */}
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium">{vault.vault_name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {truncateAddress(vault.vault_address)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    
+                    {/* Token */}
+                    <TableCell className="font-medium">{vault.token}</TableCell>
+                    
+                    {/* Delegated */}
+                    <TableCell className="text-right">
+                      ${vault.delegated.toLocaleString()}
+                    </TableCell>
+                    
+                    {/* Borrowed Quantity */}
+                    <TableCell className="text-right">
+                      {vault.borrowed_quantity.toLocaleString()} {vault.token}
+                    </TableCell>
+                    
+                    {/* Available Credit */}
+                    <TableCell className="text-right">
+                      <Badge variant={vault.available_credit_percent > 50 ? "default" : "destructive"}>
+                        {vault.available_credit_percent.toFixed(1)}%
+                      </Badge>
+                    </TableCell>
+                    
+                    {/* Interest */}
+                    <TableCell className="text-right font-semibold">
+                      {vault.interest_percent.toFixed(2)}%
+                    </TableCell>
+                    
+                    {/* Borrow Button */}
+                    <TableCell className="text-center">
                       <Button 
                         size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSlashPreFund(balance);
-                        }}
+                        onClick={() => handleBorrow(vault)}
                       >
-                        Slash/Pre-Fund
+                        Borrow
                       </Button>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              );
-            })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
@@ -901,35 +1124,6 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
       </Dialog>
 
 
-      {/* Delegations by Execution Vault */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Delegations by Execution Vault
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {delegations.map((delegation) => {
-            const totalDelegation = delegations.reduce((sum, d) => sum + d.usd_value, 0);
-            const utilizationPercent = totalDelegation > 0 ? (delegation.usd_value / totalDelegation) * 100 : 0;
-            
-            return (
-              <div key={delegation.id} className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="font-medium">{delegation.token_type} Vault</span>
-                  <span>${delegation.usd_value.toLocaleString()}</span>
-                </div>
-                <Progress value={utilizationPercent} className="h-3" />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{delegation.amount.toLocaleString()} tokens</span>
-                  <span>{utilizationPercent.toFixed(1)}% utilized</span>
-                </div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
 
       {/* Position Status */}
       <Card>
@@ -940,40 +1134,98 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Key Metrics Header */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Current Value of Assets Slashed */}
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">Current Value of Assets Slashed</p>
-              <p className="text-3xl font-bold mb-2">${totalAssetsSlashed.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">No. of Assets Slashed: {numAssetsSlashed}</p>
-            </div>
+          <TooltipProvider>
+            {/* Key Metrics Header */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Current Value of Assets Slashed */}
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-muted-foreground">Current Value of Assets Slashed</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Total USD value of assets currently locked as collateral from pre-slashing across all vaults.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <p className="text-3xl font-bold mb-2">${totalAssetsSlashed.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">No. of Assets Slashed: {numAssetsSlashed}</p>
+              </div>
 
-            {/* Current Value of Assets in Custody */}
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">Current Value of Assets in Custody</p>
-              <p className="text-3xl font-bold mb-2">${totalAssetsInCustody.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">No. of Assets Held: {numAssetsHeld}</p>
-            </div>
+              {/* Current Value of Assets in Custody */}
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-muted-foreground">Current Value of Assets in Custody</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Total USD value of assets held in escrow and orchestrator balances available for operations.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <p className="text-3xl font-bold mb-2">${totalAssetsInCustody.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">No. of Assets Held: {numAssetsHeld}</p>
+              </div>
 
-            {/* Gross Profit/Loss */}
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">Gross Profit/Loss</p>
-              <div className="flex items-center gap-2 mb-2">
-                {isProfit ? (
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                ) : (
-                  <TrendingDown className="h-5 w-5 text-destructive" />
-                )}
-                <p className={`text-3xl font-bold ${isProfit ? 'text-green-600' : 'text-destructive'}`}>
-                  ${Math.abs(grossProfitLoss).toLocaleString()}
+              {/* Unrealised P/L */}
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-muted-foreground">Unrealised P/L</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Potential profit or loss on current open positions, calculated as the difference between assets in custody and slashed assets.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  {isUnrealisedProfit ? (
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <TrendingDown className="h-5 w-5 text-destructive" />
+                  )}
+                  <p className={`text-3xl font-bold ${isUnrealisedProfit ? 'text-green-600' : 'text-destructive'}`}>
+                    ${Math.abs(unrealisedPL).toLocaleString()}
+                  </p>
+                </div>
+                <p className={`text-xs ${isUnrealisedProfit ? 'text-green-600' : 'text-destructive'}`}>
+                  {isUnrealisedProfit ? '+' : '-'}{Math.abs(unrealisedPercentage).toFixed(2)}%
                 </p>
               </div>
-              <p className={`text-xs ${isProfit ? 'text-green-600' : 'text-destructive'}`}>
-                {isProfit ? '+' : '-'}{Math.abs(profitLossPercentage).toFixed(2)}%
-              </p>
+
+              {/* Realised P/L */}
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-muted-foreground">Realised P/L</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Actual profit or loss from completed trades and settled positions, representing realized gains or losses.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  {isRealisedProfit ? (
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <TrendingDown className="h-5 w-5 text-destructive" />
+                  )}
+                  <p className={`text-3xl font-bold ${isRealisedProfit ? 'text-green-600' : 'text-destructive'}`}>
+                    ${Math.abs(realisedPL).toLocaleString()}
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">From completed trades</p>
+              </div>
             </div>
-          </div>
+          </TooltipProvider>
 
           {/* Assets in Escrow Table */}
           <div>
