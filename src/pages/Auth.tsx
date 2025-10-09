@@ -185,7 +185,7 @@ export default function Auth() {
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent opacity-95"></div>
+        
         <div className="relative container mx-auto px-6 py-24">
           <div className="max-w-md mx-auto">
             <div className="flex justify-center mb-6">

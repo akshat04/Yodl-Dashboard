@@ -168,7 +168,7 @@ export default function OperatorDashboard() {
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent opacity-95"></div>
+  {/* Removed gradient background for solid dark green background */}
         <div className="relative container mx-auto px-4 md:px-6 py-8 md:py-16">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between mb-8">
@@ -237,13 +237,13 @@ export default function OperatorDashboard() {
               {!hasRole('curator') && (
                 <Tabs defaultValue="movefund" className="w-full">
                   <TabsList className="grid w-full grid-cols-7 mb-6">
-                    <TabsTrigger value="movefund" className="tab-trigger-black">Trade Settlement</TabsTrigger>
-                    <TabsTrigger value="liquidations" className="tab-trigger-black">Liquidations</TabsTrigger>
-                    <TabsTrigger value="rebalance" className="tab-trigger-black">Rebalance/Replenish</TabsTrigger>
-                    <TabsTrigger value="reserve" className="tab-trigger-black">Reserve</TabsTrigger>
-                    <TabsTrigger value="claim" className="tab-trigger-black">Claim Fee</TabsTrigger>
-                    <TabsTrigger value="challenge" className="tab-trigger-black">Challenges</TabsTrigger>
-                    <TabsTrigger value="feesetter" className="tab-trigger-black">Fee Setter</TabsTrigger>
+                    <TabsTrigger value="movefund" className="data-[state=inactive]:text-foreground">Trade Settlement</TabsTrigger>
+                    <TabsTrigger value="liquidations" className="data-[state=inactive]:text-foreground">Liquidations</TabsTrigger>
+                    <TabsTrigger value="rebalance" className="data-[state=inactive]:text-foreground">Rebalance/Replenish</TabsTrigger>
+                    <TabsTrigger value="reserve" className="data-[state=inactive]:text-foreground">Reserve</TabsTrigger>
+                    <TabsTrigger value="claim" className="data-[state=inactive]:text-foreground">Claim Fee</TabsTrigger>
+                    <TabsTrigger value="challenge" className="data-[state=inactive]:text-foreground">Challenges</TabsTrigger>
+                    <TabsTrigger value="feesetter" className="data-[state=inactive]:text-foreground">Fee Setter</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="rebalance" forceMount className="mt-6">

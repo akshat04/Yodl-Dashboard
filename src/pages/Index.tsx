@@ -14,7 +14,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent opacity-95"></div>
+        
         <div className="relative container mx-auto px-6 py-24">
           <div className="max-w-4xl mx-auto text-center text-primary-foreground">
             <Badge variant="secondary" className="mb-6 bg-success/20 text-success-foreground border-success/30">
