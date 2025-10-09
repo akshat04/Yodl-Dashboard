@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronDown, Clock, RefreshCw, Vault, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AnalogTimer } from "@/components/ui/analog-timer";
+import { useAuth } from "@/hooks/useAuth";
 
 interface VaultRebalance {
   id: string;
@@ -97,7 +99,13 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
   const [tokenAmounts, setTokenAmounts] = useState<Record<string, string>>({});
   const [restoreAmount, setRestoreAmount] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'unlisted' | 'listed'>('unlisted');
+  const [activeVaultTab, setActiveVaultTab] = useState<'needs' | 'requested'>('needs');
   const { toast } = useToast();
+  const { hasRole, profile } = useAuth();
+  
+  // Determine current user role
+  const isCurator = hasRole('curator');
+  const isOperator = hasRole('operator');
 
   useEffect(() => {
     fetchData();
@@ -643,26 +651,75 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
     return <div className="text-center py-8">Loading...</div>;
   }
 
-  const sortedVaults = [...vaults].sort((a, b) => {
-    if (isRebalancing) {
-      const aNeedsRebalance = needsRebalancing(a);
-      const bNeedsRebalance = needsRebalancing(b);
-      if (aNeedsRebalance && !bNeedsRebalance) return -1;
-      if (!aNeedsRebalance && bNeedsRebalance) return 1;
-    }
+  // Calculate deficit in USD for sorting
+  const calculateDeficitUsd = (vault: VaultRebalance) => {
+    const deficit = vault.total_pre_slashed - vault.orchestrator_balance;
+    const tokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+    return deficit * tokenPrice;
+  };
+
+  // Calculate YODL USD value (fallback + 1% buffer)
+  const calculateYodlUsdValue = (vault: VaultRebalance) => {
+    return vault.approx_fallback_yodl * 1.01;
+  };
+
+  // Categorize vaults into "Needs Rebalancing" and "Rebalance Requested"
+  const needsRebalancingVaults = vaults.filter(vault => 
+    !vaultTimers.find(t => t.vaultId === vault.id && t.isActive)
+  );
+
+  const rebalanceRequestedVaults = vaults.filter(vault => 
+    vaultTimers.find(t => t.vaultId === vault.id && t.isActive)
+  );
+
+  // Sort "Needs Rebalancing" by deficit in USD (descending)
+  const sortedNeedsRebalancing = [...needsRebalancingVaults].sort((a, b) => {
+    return calculateDeficitUsd(b) - calculateDeficitUsd(a);
+  });
+
+  // Sort "Rebalance Requested" by remaining time (ascending)
+  const sortedRebalanceRequested = [...rebalanceRequestedVaults].sort((a, b) => {
     const timerA = getVaultTimer(a.id);
     const timerB = getVaultTimer(b.id);
-    
-    // Both have active timers - sort by remaining time (least time first)
-    if (timerA?.isActive && timerB?.isActive) {
+    if (timerA && timerB) {
       return timerA.countdown - timerB.countdown;
     }
-    
-    // Active timers come before inactive
-    if (timerA?.isActive && !timerB?.isActive) return -1;
-    if (!timerA?.isActive && timerB?.isActive) return 1;
     return 0;
   });
+
+  // Helper component for vertical progress bar with segmented fluid design
+  const VerticalProgressBar = ({ value }: { value: number }) => {
+    const segments = 10;
+    const filledSegments = Math.ceil((value / 100) * segments);
+    
+    const getSegmentColor = (index: number) => {
+      const threshold = ((index + 1) / segments) * 100;
+      if (threshold >= 90) return 'bg-red-500/90';
+      if (threshold >= 70) return 'bg-orange-500/90';
+      if (threshold >= 50) return 'bg-yellow-500/90';
+      return 'bg-emerald-500/90';
+    };
+
+    return (
+      <div className="h-full w-4 hover:w-5 bg-secondary/20 rounded-full overflow-hidden flex flex-col-reverse gap-0.5 p-0.5 border border-border/30 transition-all duration-300 cursor-pointer">
+        {Array.from({ length: segments }).map((_, index) => (
+          <div
+            key={index}
+            className={`flex-1 rounded-sm transition-all duration-500 ease-out ${
+              index < filledSegments 
+                ? `${getSegmentColor(index)} shadow-inner animate-pulse` 
+                : 'bg-transparent'
+            }`}
+            style={{
+              transitionDelay: `${index * 50}ms`,
+              animationDelay: `${index * 100}ms`,
+              animationDuration: '2s'
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -674,121 +731,213 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
             Active Vaults
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {sortedVaults.map((vault, index) => {
-            const timer = getVaultTimer(vault.id);
-            const deficitSurplus = calculateDeficitSurplus(vault);
-            const calculatedUtilization = ((vault.total_pre_slashed - vault.orchestrator_balance) / vault.total_pre_slashed) * 100;
-            const barValue = (vault.orchestrator_balance / vault.total_pre_slashed) * 100;
-            
-            return (
-              <Collapsible key={vault.id}>
-                <div 
-                  className={`rounded-lg transition-all duration-500 ease-in-out ${
-                    isRebalancing ? 'animate-fade-in' : ''
-                  }`}
-                  style={{
-                    transitionDelay: isRebalancing ? `${index * 100}ms` : '0ms'
-                  }}
-                >
-                  <CollapsibleTrigger className="flex items-center gap-4 w-full p-4 hover:bg-muted/50">
-                    <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                    
-                    {/* Left Side - Vault Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-3 mb-2">
-                        <p className="font-medium whitespace-nowrap">{vault.curator_name}: {vault.maker_token} Vault</p>
-                        <p className="text-sm">
-                          {vault.orchestrator_balance.toLocaleString()} {vault.maker_token} /{vault.total_pre_slashed.toLocaleString()} {vault.maker_token}
-                        </p>
-                        <p className="text-sm text-cyan-500 whitespace-nowrap">
-                          (Orchestrator Balance out of Total Pre-Slashed Balance)
-                        </p>
-                      </div>
-                      <Progress 
-                        value={barValue} 
-                        className="h-2 mb-1 transition-all duration-1000" 
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Utilization %: {calculatedUtilization.toFixed(0)}%
-                      </p>
-                    </div>
+        <CardContent>
+          {/* Nested Tabs */}
+          <Tabs value={activeVaultTab} onValueChange={(v) => setActiveVaultTab(v as 'needs' | 'requested')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="needs">
+                Needs Rebalancing ({sortedNeedsRebalancing.length})
+              </TabsTrigger>
+              <TabsTrigger value="requested">
+                Rebalance Requested ({sortedRebalanceRequested.length})
+              </TabsTrigger>
+            </TabsList>
 
-                    {/* Right Side - Badges */}
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      {needsRebalancing(vault) && (
-                        <Badge variant="destructive" className="whitespace-nowrap">
-                          Rebalancing Requested
-                        </Badge>
-                      )}
-                      {timer?.isActive && (
-                        <Badge variant="secondary" className="flex items-center gap-1 bg-black text-white">
-                          <Clock className="h-3 w-3" />
-                          {formatTime(timer.countdown)}
-                        </Badge>
-                      )}
-                    </div>
-                  </CollapsibleTrigger>
-                  
-                  <CollapsibleContent>
-                    <div className="p-4 pt-0 space-y-4">
-                      {/* Vault Details Grid */}
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Escrow Balance</p>
-                          <p className="font-medium">
-                            {(() => {
-                              const escrowToken = escrowTokens?.find(t => t.token_symbol === vault.maker_token);
-                              const escrowBalance = escrowToken?.amount ?? 0;
-                              return `${escrowBalance.toLocaleString()} ${vault.maker_token}`;
-                            })()}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">{deficitSurplus.type === 'deficit' ? 'Deficit' : 'Surplus'}</p>
-                          <p className={`font-medium ${deficitSurplus.type === 'deficit' ? 'text-destructive' : 'text-green-600'}`}>
-                            {deficitSurplus.amount.toLocaleString()} {vault.maker_token}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Approx Fallback Qty in YODL</p>
-                          <p className="font-medium">{vault.approx_fallback_yodl.toLocaleString()} YODL</p>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleReplenishVault(vault);
-                          }}
-                        >
-                          Replenish
-                        </Button>
-                        <Button 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRebalance(vault);
-                          }}
-                        >
-                          Rebalance
-                        </Button>
-                      </div>
-
-                      {/* Vault Address */}
-                      <div className="text-xs text-muted-foreground">
-                        Exec Vault: {vault.vault_address.substring(0, 10)}...
-                      </div>
-                    </div>
-                  </CollapsibleContent>
+            {/* Needs Rebalancing Tab */}
+            <TabsContent value="needs" className="space-y-3 mt-0">
+              {sortedNeedsRebalancing.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No vaults need rebalancing
                 </div>
-              </Collapsible>
-            );
-          })}
+              ) : (
+                sortedNeedsRebalancing.map((vault, index) => {
+                  const deficit = vault.total_pre_slashed - vault.orchestrator_balance;
+                  const yodlUsdValue = calculateYodlUsdValue(vault);
+                  const utilizationPercent = ((vault.total_pre_slashed - vault.orchestrator_balance) / vault.total_pre_slashed) * 100;
+                  
+                  return (
+                    <Collapsible key={vault.id}>
+                      <div className="rounded-lg border">
+                        <CollapsibleTrigger className="flex items-center gap-3 w-full p-4 hover:bg-muted/50 group">
+                          <ChevronDown className="h-4 w-4 flex-shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                          
+                          {/* Vault Info */}
+                          <div className="flex-1 min-w-0 text-left">
+                            <p className="font-medium">{vault.curator_name}: {vault.maker_token} Vault - {vault.maker_token}</p>
+                            <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                              <span>Deficit: <span className="text-destructive font-medium">{deficit.toLocaleString()} {vault.maker_token}</span></span>
+                              <span>YODL USD: <span className="text-foreground font-medium">~${yodlUsdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></span>
+                            </div>
+                          </div>
+
+                          {/* Vertical Progress Bar */}
+                          <div className="h-12 w-4 flex-shrink-0">
+                            <VerticalProgressBar value={utilizationPercent} />
+                          </div>
+                        </CollapsibleTrigger>
+                        
+                        <CollapsibleContent>
+                          <div className="p-4 pt-0 space-y-4 border-t">
+                            {/* Vault Details Grid */}
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Total Pre-Slashed</p>
+                                <p className="font-medium">{vault.total_pre_slashed.toLocaleString()} {vault.maker_token}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Orchestrator Balance</p>
+                                <p className="font-medium">{vault.orchestrator_balance.toLocaleString()} {vault.maker_token}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Escrow Balance</p>
+                                <p className="font-medium">
+                                  {(() => {
+                                    const escrowToken = escrowTokens?.find(t => t.token_symbol === vault.maker_token);
+                                    const escrowBalance = escrowToken?.amount ?? 0;
+                                    return `${escrowBalance.toLocaleString()} ${vault.maker_token}`;
+                                  })()}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">YODL Fallback Qty</p>
+                                <p className="font-medium flex items-center gap-2">
+                                  {vault.approx_fallback_yodl.toLocaleString()} YODL
+                                  <span className="text-xs text-primary animate-pulse">●</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReplenishVault(vault);
+                                }}
+                              >
+                                Replenish
+                              </Button>
+                              <Button 
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRebalance(vault);
+                                }}
+                              >
+                                Rebalance
+                              </Button>
+                            </div>
+
+                            {/* Vault Address */}
+                            <div className="text-xs text-muted-foreground">
+                              Exec Vault: {vault.vault_address.substring(0, 10)}...
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  );
+                })
+              )}
+            </TabsContent>
+
+            {/* Rebalance Requested Tab */}
+            <TabsContent value="requested" className="space-y-3 mt-0">
+              {sortedRebalanceRequested.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No rebalance requests pending
+                </div>
+              ) : (
+                sortedRebalanceRequested.map((vault) => {
+                  const timer = getVaultTimer(vault.id);
+                  const deficit = vault.total_pre_slashed - vault.orchestrator_balance;
+                  const yodlUsdValue = calculateYodlUsdValue(vault);
+                  const utilizationPercent = ((vault.total_pre_slashed - vault.orchestrator_balance) / vault.total_pre_slashed) * 100;
+                  
+                  return (
+                    <Collapsible key={vault.id}>
+                      <div className="rounded-lg border border-primary/30 bg-primary/5">
+                        <CollapsibleTrigger className="flex items-center gap-3 w-full p-4 hover:bg-muted/50 group">
+                          <ChevronDown className="h-4 w-4 flex-shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                          
+                          {/* Vault Info with Timer */}
+                          <div className="flex-1 min-w-0 text-left">
+                            <div className="flex items-center gap-3">
+                              <p className="font-medium">{vault.curator_name}: {vault.maker_token} Vault - {vault.maker_token}</p>
+                              {timer && <AnalogTimer remainingSeconds={timer.countdown} totalSeconds={600} size={40} />}
+                            </div>
+                            <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                              <span>Deficit: <span className="text-destructive font-medium">{deficit.toLocaleString()} {vault.maker_token}</span></span>
+                              <span>YODL USD: <span className="text-foreground font-medium">~${yodlUsdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></span>
+                            </div>
+                          </div>
+
+                          {/* Vertical Progress Bar */}
+                          <div className="h-12 w-4 flex-shrink-0">
+                            <VerticalProgressBar value={utilizationPercent} />
+                          </div>
+                        </CollapsibleTrigger>
+                        
+                        <CollapsibleContent>
+                          <div className="p-4 pt-0 space-y-4 border-t">
+                            {/* Vault Details Grid */}
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Total Pre-Slashed</p>
+                                <p className="font-medium">{vault.total_pre_slashed.toLocaleString()} {vault.maker_token}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Orchestrator Balance</p>
+                                <p className="font-medium">{vault.orchestrator_balance.toLocaleString()} {vault.maker_token}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Escrow Balance</p>
+                                <p className="font-medium">
+                                  {(() => {
+                                    const escrowToken = escrowTokens?.find(t => t.token_symbol === vault.maker_token);
+                                    const escrowBalance = escrowToken?.amount ?? 0;
+                                    return `${escrowBalance.toLocaleString()} ${vault.maker_token}`;
+                                  })()}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">YODL Fallback Qty</p>
+                                <p className="font-medium flex items-center gap-2">
+                                  {vault.approx_fallback_yodl.toLocaleString()} YODL
+                                  <span className="text-xs text-primary animate-pulse">●</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReplenishVault(vault);
+                                }}
+                              >
+                                Replenish
+                              </Button>
+                            </div>
+
+                            {/* Vault Address */}
+                            <div className="text-xs text-muted-foreground">
+                              Exec Vault: {vault.vault_address.substring(0, 10)}...
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
+                  );
+                })
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -980,17 +1129,16 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
             </div>
 
             {/* Total Amount Display */}
-            <div className="mt-6 pt-4 border-t">
+            <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-muted-foreground">Total Amount:</span>
-                <span className="text-lg font-bold text-primary">
-                  {calculateTotalAmount()} {selectedVault?.maker_token}
-                </span>
+                <span className="text-2xl font-bold text-primary">{calculateTotalAmount()} {selectedVault?.maker_token}</span>
               </div>
             </div>
+
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={() => setReplenishDialogOpen(false)}>
               Cancel
             </Button>

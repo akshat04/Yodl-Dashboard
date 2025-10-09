@@ -90,7 +90,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      // If sign out fails (e.g., session already expired), ignore the error
+      console.log('Sign out API call failed, clearing local state anyway');
+    } finally {
+      // Always clear local state regardless of API success/failure
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+    }
   };
 
   const hasRole = (role: 'operator' | 'curator') => {
