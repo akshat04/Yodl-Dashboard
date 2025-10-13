@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronDown, Clock, RefreshCw, Vault, AlertCircle, CheckCircle2, DollarSign, TrendingUp, TrendingDown, Info } from "lucide-react";
@@ -102,6 +103,8 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
   const [restoreAmount, setRestoreAmount] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'unlisted' | 'listed'>('unlisted');
   const [activeVaultTab, setActiveVaultTab] = useState<'needs' | 'requested'>('needs');
+  const [liquiditySource, setLiquiditySource] = useState<string>("uniswap");
+  const [slippage, setSlippage] = useState<string>("0.5");
   const { toast } = useToast();
   const { hasRole, profile } = useAuth();
   
@@ -1216,6 +1219,8 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
               </div>
             </div>
 
+            
+
             {/* Tabbed Token Selection */}
             <div className="space-y-3">
               {(() => {
@@ -1388,6 +1393,36 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                   </>
                 );
               })()}
+            </div>
+            
+            {/* Liquidity Source and Slippage */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="liquidity-source">Liquidity Source</Label>
+                <Select value={liquiditySource} onValueChange={setLiquiditySource}>
+                  <SelectTrigger id="liquidity-source" className="bg-background text-foreground">
+                    <SelectValue placeholder="Select liquidity source" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover text-popover-foreground">
+                    <SelectItem value="uniswap" className="text-foreground">Uniswap</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="slippage">Slippage (%)</Label>
+                <Input
+                  id="slippage"
+                  type="number"
+                  placeholder="0.5"
+                  value={slippage}
+                  onChange={(e) => setSlippage(e.target.value)}
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  className="bg-background text-foreground"
+                />
+              </div>
             </div>
 
             {/* Total Amount Display */}
