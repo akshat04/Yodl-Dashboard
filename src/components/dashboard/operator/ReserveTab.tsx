@@ -1,3 +1,4 @@
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -95,6 +96,8 @@ interface CreditLineData {
 }
 
 export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEscrowTokens, onEscrowTokensUpdate }: ReserveTabProps) {
+  // Tab state for listed/unlisted tokens
+  const [tokenTab, setTokenTab] = useState<'listed' | 'unlisted'>('listed');
   const [yodlBalances, setYodlBalances] = useState<YodlBalance[]>([]);
   const [preSlashedData, setPreSlashedData] = useState<PreSlashedData[]>([]);
   const [delegations, setDelegations] = useState<DelegationData[]>([]);
@@ -894,6 +897,10 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
   const numAssetsSlashed = vaults.filter(v => v.total_pre_slashed > 0).length;
   const numAssetsHeld = new Set(vaults.map(v => v.maker_token)).size;
 
+  // Split tokens by listed/unlisted
+  const listedTokens = escrowTokens.filter(t => t.isListed);
+  const unlistedTokens = escrowTokens.filter(t => !t.isListed);
+
   return (
     <div className="space-y-6">
       {/* Vault Reserve Balance with Slash/Pre-Fund Options */}
@@ -1229,66 +1236,109 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
             </div>
           </TooltipProvider>
 
-          {/* Assets in Escrow Table */}
+          {/* Assets in Escrow Table - Tabbed Version */}
           <div>
             <h3 className="text-lg font-semibold mb-3">Assets in Escrow</h3>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Token Name</TableHead>
-                  <TableHead className="text-right">Token Quantity</TableHead>
-                  <TableHead className="text-right">Token Amount in USD</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-center">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {escrowTokens.map((token) => (
-                  <TableRow key={token.id} className="hover:bg-muted/50">
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="font-bold text-xs text-primary">
-                            {token.token_symbol.substring(0, 2)}
-                          </span>
-                        </div>
-                        {token.token_symbol}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {token.amount.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      ${token.usd_value.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={token.isListed ? "default" : "secondary"}>
-                        {token.isListed ? "Listed" : "Un-Listed"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {token.isListed ? (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleRestore(token)}
-                        >
-                          Restore
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={() => handleSwap(token)}
-                        >
-                          Swap
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <Tabs value={tokenTab} onValueChange={v => setTokenTab(v as 'listed' | 'unlisted')} className="w-full">
+              <TabsList className="mb-2 flex w-full">
+                <TabsTrigger value="listed" className="flex-1">Listed Tokens</TabsTrigger>
+                <TabsTrigger value="unlisted" className="flex-1">Unlisted Tokens</TabsTrigger>
+              </TabsList>
+              <TabsContent value="listed">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Token Name</TableHead>
+                      <TableHead className="text-right">Token Quantity</TableHead>
+                      <TableHead className="text-right">Token Amount in USD</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-center">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {listedTokens.map((token) => (
+                      <TableRow key={token.id} className="hover:bg-muted/50">
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="font-bold text-xs text-primary">
+                                {token.token_symbol.substring(0, 2)}
+                              </span>
+                            </div>
+                            {token.token_symbol}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {token.amount.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          ${token.usd_value.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="default">Listed</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleRestore(token)}
+                          >
+                            Restore
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TabsContent>
+              <TabsContent value="unlisted">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Token Name</TableHead>
+                      <TableHead className="text-right">Token Quantity</TableHead>
+                      <TableHead className="text-right">Token Amount in USD</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-center">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {unlistedTokens.map((token) => (
+                      <TableRow key={token.id} className="hover:bg-muted/50">
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="font-bold text-xs text-primary">
+                                {token.token_symbol.substring(0, 2)}
+                              </span>
+                            </div>
+                            {token.token_symbol}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {token.amount.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          ${token.usd_value.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary">Un-Listed</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleSwap(token)}
+                          >
+                            Swap
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TabsContent>
+            </Tabs>
           </div>
         </CardContent>
       </Card>

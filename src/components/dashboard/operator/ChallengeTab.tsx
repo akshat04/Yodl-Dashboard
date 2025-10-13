@@ -206,7 +206,7 @@ export function ChallengeTab() {
         <CardContent className="space-y-6">
           {/* Enhanced Summary with 4 Metrics */}
           <div className="p-6 bg-muted/50 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
               {/* Total Amount Due */}
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Total Amount Due</p>
@@ -218,7 +218,7 @@ export function ChallengeTab() {
 
               {/* Total Reserve (YODL) */}
               <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Total Reserve (YODL)</p>
+                <p className="text-sm text-muted-foreground">Reserve Balance Available</p>
                 <p className="text-3xl font-bold text-foreground">{totalReserveYODL.toLocaleString()} YODL</p>
                 <p className="text-xs text-muted-foreground">Available reserves</p>
               </div>
@@ -229,6 +229,13 @@ export function ChallengeTab() {
                 <p className="text-3xl font-bold text-foreground">${reserveUSDValue.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Current market value</p>
               </div>
+              
+              {/* Challenges Settled */}
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Challenges Settled</p>
+                <p className="text-3xl font-bold text-foreground">{closedChallenges.length}</p>
+                <p className="text-xs text-muted-foreground">Settled all-time</p>
+              </div>
 
               {/* Coverage Ratio */}
               <div className="space-y-1">
@@ -238,6 +245,8 @@ export function ChallengeTab() {
                 </p>
                 <p className="text-xs text-muted-foreground">Reserve / Amount Due</p>
               </div>
+
+              
             </div>
           </div>
 

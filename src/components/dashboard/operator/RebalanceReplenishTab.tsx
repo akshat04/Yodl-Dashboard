@@ -1045,14 +1045,14 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                         <TabsList className="grid w-full grid-cols-2">
                           <TabsTrigger 
                             value="unlisted" 
-                            className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 data-[state=active]:border-orange-500 data-[state=inactive]:text-gray-700"
+                            className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 data-[state=active]:border-orange-500 data-[state=inactive]:text-gray-700 data-[state=inactive]:text-foreground"
                           >
                             <AlertCircle className="h-4 w-4 mr-2" />
                             Unlisted
                           </TabsTrigger>
                           <TabsTrigger 
                             value="listed"
-                            className="data-[state=active]:bg-green-100 data-[state=active]:text-green-700 data-[state=active]:border-green-500 data-[state=inactive]:text-gray-700"
+                            className="data-[state=active]:bg-green-100 data-[state=active]:text-green-700 data-[state=active]:border-green-500 data-[state=inactive]:text-gray-700 data-[state=inactive]:text-foreground"
                           >
                             <CheckCircle2 className="h-4 w-4 mr-2" />
                             Listed
@@ -1110,6 +1110,7 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
 
                         <TabsContent value="listed" className="mt-3">
                           <div className="space-y-3 border border-green-200 rounded-lg p-3 max-h-96 overflow-y-auto bg-green-50/30">
+                          
                             {escrowTokens?.filter(token => token.isListed && token.token_symbol !== selectedVault?.maker_token).map((token) => (
                               <div key={token.token_symbol} className="space-y-2">
                                 <div className="flex items-center space-x-3 py-2">
