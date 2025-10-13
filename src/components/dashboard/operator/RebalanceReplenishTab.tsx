@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronDown, Clock, RefreshCw, Vault, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
+import { ChevronDown, Clock, RefreshCw, Vault, AlertCircle, CheckCircle2, DollarSign, TrendingUp, TrendingDown, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AnalogTimer } from "@/components/ui/analog-timer";
 import { useAuth } from "@/hooks/useAuth";
@@ -97,6 +98,7 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
   const [selectedVault, setSelectedVault] = useState<PreSlashedVault | null>(null);
   const [selectedTokens, setSelectedTokens] = useState<string[]>([]);
   const [tokenAmounts, setTokenAmounts] = useState<Record<string, string>>({});
+  const [healthScore, setHealthScore] = useState<number>(0);
   const [restoreAmount, setRestoreAmount] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'unlisted' | 'listed'>('unlisted');
   const [activeVaultTab, setActiveVaultTab] = useState<'needs' | 'requested'>('needs');
@@ -139,10 +141,14 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
 
   const fetchData = async () => {
     try {
-      const [vaultRes, preSlashedRes] = await Promise.all([
+      const [vaultRes, preSlashedRes, healthRes] = await Promise.all([
         supabase.from('vault_outstanding_rebalances').select('*'),
-        supabase.from('delegated_vault_pre_slashing').select('*')
+        supabase.from('delegated_vault_pre_slashing').select('*'),
+        supabase.from('operator_liquidation_health').select('health_score').single()
       ]);
+
+      // Set health score (default to 75 if no data)
+      setHealthScore(healthRes.data?.health_score || 75);
 
       // Mock data for vaults - Testing 3 restore cases
       const mockVaults: VaultRebalance[] = [
@@ -437,6 +443,52 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
     return convertToken(fromToken, numAmount, toToken).toFixed(6);
   };
 
+  const convertFromMakerToken = (amountInMakerToken: number, targetTokenSymbol: string): number => {
+    if (!selectedVault) return 0;
+    return convertToken(selectedVault.maker_token, amountInMakerToken, targetTokenSymbol);
+  };
+
+  const handleTokenMax = (tokenSymbol: string) => {
+    if (!selectedVault) return;
+    
+    // Find the token in escrow
+    const token = escrowTokens?.find(t => t.token_symbol === tokenSymbol);
+    if (!token) return;
+    
+    // Calculate orchestrator deficit
+    const deficit = Math.max(0, selectedVault.total_pre_slashed - selectedVault.orchestrator_balance);
+    
+    // Get the restore amount (amount already being restored from maker token)
+    const restoreAmountNum = parseFloat(restoreAmount) || 0;
+    
+    // Calculate amounts from other selected tokens (in maker token)
+    const otherTokensCovered = selectedTokens
+      .filter(sym => sym !== tokenSymbol)
+      .reduce((sum, sym) => {
+        const amt = parseFloat(tokenAmounts[sym] || '0');
+        if (!amt) return sum;
+        return sum + convertToken(sym, amt, selectedVault.maker_token);
+      }, 0);
+    
+    // Calculate remaining deficit after restore and other tokens
+    const remainingDeficit = Math.max(0, deficit - restoreAmountNum - otherTokensCovered);
+    
+    // If no remaining deficit, set to 0
+    if (remainingDeficit <= 0) {
+      handleAmountChange(tokenSymbol, '0');
+      return;
+    }
+    
+    // Convert remaining deficit from maker token to this token
+    const maxInTargetToken = convertFromMakerToken(remainingDeficit, tokenSymbol);
+    
+    // Cap by available escrow balance
+    const cappedMax = Math.min(maxInTargetToken, token.amount);
+    
+    // Set the amount
+    handleAmountChange(tokenSymbol, cappedMax.toFixed(6));
+  };
+
   const calculateTotalAmount = (): string => {
     if (!selectedVault) return '0';
     
@@ -721,17 +773,163 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
     );
   };
 
+  // Position Status calculations
+  const totalAssetsSlashed = sharedVaults?.reduce((sum, v) => {
+    const price = TOKEN_PRICES[v.maker_token] || 1;
+    return sum + (v.total_pre_slashed * price);
+  }, 0) || 0;
+  
+  const totalAssetsInCustody = sharedVaults?.reduce((sum, v) => {
+    const price = TOKEN_PRICES[v.maker_token] || 1;
+    return sum + ((v.escrow_amount + v.orchestrator_balance) * price);
+  }, 0) || 0;
+  
+  const unrealisedPL = totalAssetsInCustody - totalAssetsSlashed;
+  const unrealisedPercentage = totalAssetsSlashed > 0 ? (unrealisedPL / totalAssetsSlashed) * 100 : 0;
+  const isUnrealisedProfit = unrealisedPL >= 0;
+  
+  const numAssetsSlashed = sharedVaults?.filter(v => v.total_pre_slashed > 0).length || 0;
+  const numAssetsHeld = new Set(sharedVaults?.map(v => v.maker_token) || []).size;
+
   return (
     <div className="space-y-6">
       {/* Active Vaults Ready for Rebalance */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Vault className="h-5 w-5" />
-            Active Vaults
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Vault className="h-5 w-5" />
+              Active Vaults
+            </CardTitle>
+            
+            {/* Health Factor Bar */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">Health Factor</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      Health Factor indicates your distance from liquidation. 
+                      Safe (green): ≥70%, Warning (yellow): 40-70%, Danger (red): &lt;40%
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <div className="relative w-48 h-3 bg-muted rounded-full overflow-hidden">
+                  {/* Danger zone (0-40%) */}
+                  <div className="absolute left-0 top-0 h-full w-[40%] bg-destructive/30" />
+                  {/* Warning zone (40-70%) */}
+                  <div className="absolute left-[40%] top-0 h-full w-[30%] bg-yellow-500/30" />
+                  {/* Safe zone (70-100%) */}
+                  <div className="absolute left-[70%] top-0 h-full w-[30%] bg-emerald-500/30" />
+                  
+                  {/* Current position indicator */}
+                  <div 
+                    className="absolute top-0 h-full transition-all duration-500"
+                    style={{ 
+                      left: 0,
+                      width: `${healthScore}%`,
+                      background: healthScore >= 70 
+                        ? 'hsl(var(--chart-2))' 
+                        : healthScore >= 40 
+                          ? 'hsl(47 95% 53%)' 
+                          : 'hsl(var(--destructive))'
+                    }}
+                  />
+                  
+                  {/* Marker */}
+                  <div 
+                    className="absolute top-1/2 -translate-y-1/2 w-1 h-5 bg-foreground rounded-full shadow-lg transition-all duration-500"
+                    style={{ left: `${healthScore}%`, marginLeft: '-2px' }}
+                  />
+                </div>
+                
+                <span className={`text-sm font-semibold min-w-[3rem] ${
+                  healthScore >= 70 
+                    ? 'text-emerald-600 dark:text-emerald-400' 
+                    : healthScore >= 40 
+                      ? 'text-yellow-600 dark:text-yellow-400' 
+                      : 'text-destructive'
+                }`}>
+                  {healthScore.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          {/* Position Status Cards */}
+          <TooltipProvider>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Current Value of Assets Slashed */}
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-muted-foreground">Current Value of Assets Slashed</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Total USD value of assets currently locked as collateral from pre-slashing across all vaults.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <p className="text-3xl font-bold mb-2">${totalAssetsSlashed.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">No. of Assets Slashed: {numAssetsSlashed}</p>
+              </div>
+
+              {/* Current Value of Assets in Custody */}
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-muted-foreground">Current Value of Assets in Custody</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Total USD value of assets held in escrow and orchestrator balances available for operations.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <p className="text-3xl font-bold mb-2">${totalAssetsInCustody.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">No. of Assets Held: {numAssetsHeld}</p>
+              </div>
+
+              {/* Unrealised P/L */}
+              <div className="p-4 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-muted-foreground">Unrealised P/L</p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">Potential profit or loss on current open positions, calculated as the difference between assets in custody and slashed assets.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  {isUnrealisedProfit ? (
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <TrendingDown className="h-5 w-5 text-destructive" />
+                  )}
+                  <p className={`text-3xl font-bold ${isUnrealisedProfit ? 'text-green-600' : 'text-destructive'}`}>
+                    ${Math.abs(unrealisedPL).toLocaleString()}
+                  </p>
+                </div>
+                <p className={`text-xs ${isUnrealisedProfit ? 'text-green-600' : 'text-destructive'}`}>
+                  {isUnrealisedProfit ? '+' : '-'}{Math.abs(unrealisedPercentage).toFixed(2)}%
+                </p>
+              </div>
+            </div>
+          </TooltipProvider>
+
           {/* Nested Tabs */}
           <Tabs value={activeVaultTab} onValueChange={(v) => setActiveVaultTab(v as 'needs' | 'requested')} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-4">
@@ -1083,16 +1281,27 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                                 
                                 {selectedTokens.includes(token.token_symbol) && (
                                   <div className="ml-9 space-y-1">
-                                    <Input
-                                      type="number"
-                                      placeholder={`Enter ${token.token_symbol} amount`}
-                                      value={tokenAmounts[token.token_symbol] || ''}
-                                      onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
-                                      step="0.000001"
-                                      min="0"
-                                      max={token.amount}
-                                      className="w-full border-orange-300 focus:ring-orange-500 text-foreground"
-                                    />
+                                    <div className="flex gap-2">
+                                      <Input
+                                        type="number"
+                                        placeholder={`Enter ${token.token_symbol} amount`}
+                                        value={tokenAmounts[token.token_symbol] || ''}
+                                        onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
+                                        step="0.000001"
+                                        min="0"
+                                        max={token.amount}
+                                        className="flex-1 border-orange-300 focus:ring-orange-500 text-foreground"
+                                      />
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleTokenMax(token.token_symbol)}
+                                        className="shrink-0"
+                                      >
+                                        Max
+                                      </Button>
+                                    </div>
                                     {tokenAmounts[token.token_symbol] && parseFloat(tokenAmounts[token.token_symbol]) > 0 && selectedVault && (
                                       <p className="text-xs text-orange-600">
                                         ≈ {calculateConversion(token.token_symbol, tokenAmounts[token.token_symbol], selectedVault.maker_token)} {selectedVault.maker_token}
@@ -1133,16 +1342,27 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                                 
                                 {selectedTokens.includes(token.token_symbol) && (
                                   <div className="ml-9 space-y-1">
-                                    <Input
-                                      type="number"
-                                      placeholder={`Enter ${token.token_symbol} amount`}
-                                      value={tokenAmounts[token.token_symbol] || ''}
-                                      onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
-                                      step="0.000001"
-                                      min="0"
-                                      max={token.amount}
-                                      className="w-full border-green-300 focus:ring-green-500 text-foreground"
-                                    />
+                                    <div className="flex gap-2">
+                                      <Input
+                                        type="number"
+                                        placeholder={`Enter ${token.token_symbol} amount`}
+                                        value={tokenAmounts[token.token_symbol] || ''}
+                                        onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
+                                        step="0.000001"
+                                        min="0"
+                                        max={token.amount}
+                                        className="flex-1 border-green-300 focus:ring-green-500 text-foreground"
+                                      />
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleTokenMax(token.token_symbol)}
+                                        className="shrink-0"
+                                      >
+                                        Max
+                                      </Button>
+                                    </div>
                                     {tokenAmounts[token.token_symbol] && parseFloat(tokenAmounts[token.token_symbol]) > 0 && selectedVault && (
                                       <p className="text-xs text-green-600">
                                         ≈ {calculateConversion(token.token_symbol, tokenAmounts[token.token_symbol], selectedVault.maker_token)} {selectedVault.maker_token}

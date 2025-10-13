@@ -14,6 +14,7 @@ import { ChallengeTab } from "@/components/dashboard/operator/ChallengeTab";
 import { MoveFundToEscrowTab } from "@/components/dashboard/operator/MoveFundToEscrowTab";
 import { LiquidationsTab } from "@/components/dashboard/operator/LiquidationsTab";
 import { FeeSetterTab } from "@/components/dashboard/operator/FeeSetterTab";
+import { DeListTab } from "@/components/dashboard/operator/DeListTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -236,7 +237,7 @@ export default function OperatorDashboard() {
               {/* Operator Tabs - Only visible to operators */}
               {!hasRole('curator') && (
                 <Tabs defaultValue="movefund" className="w-full">
-                  <TabsList className="grid w-full grid-cols-7 mb-6">
+                  <TabsList className="grid w-full grid-cols-8 mb-6">
                     <TabsTrigger value="movefund" className="data-[state=inactive]:text-foreground">Trade Settlement</TabsTrigger>
                     <TabsTrigger value="liquidations" className="data-[state=inactive]:text-foreground">Liquidations</TabsTrigger>
                     <TabsTrigger value="rebalance" className="data-[state=inactive]:text-foreground">Rebalance/Replenish</TabsTrigger>
@@ -244,6 +245,7 @@ export default function OperatorDashboard() {
                     <TabsTrigger value="claim" className="data-[state=inactive]:text-foreground">Claim Fee</TabsTrigger>
                     <TabsTrigger value="challenge" className="data-[state=inactive]:text-foreground">Challenges</TabsTrigger>
                     <TabsTrigger value="feesetter" className="data-[state=inactive]:text-foreground">Fee Setter</TabsTrigger>
+                    <TabsTrigger value="delist" className="data-[state=inactive]:text-foreground">De-List</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="rebalance" forceMount className="mt-6">
@@ -287,6 +289,13 @@ export default function OperatorDashboard() {
                   
                   <TabsContent value="feesetter" className="mt-6">
                     <FeeSetterTab />
+                  </TabsContent>
+                  
+                  <TabsContent value="delist" className="mt-6">
+                    <DeListTab 
+                      escrowTokens={escrowTokens}
+                      onEscrowTokensUpdate={setEscrowTokens}
+                    />
                   </TabsContent>
                 </Tabs>
               )}

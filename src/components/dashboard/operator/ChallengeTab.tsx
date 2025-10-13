@@ -233,7 +233,7 @@ export function ChallengeTab() {
               {/* Challenges Settled */}
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Challenges Settled</p>
-                <p className="text-3xl font-bold text-foreground">{closedChallenges.length}</p>
+                <p className="text-3xl font-bold text-foreground">${closedChallenges.reduce((sum, c) => sum + c.usd_value, 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Settled all-time</p>
               </div>
 

@@ -238,7 +238,7 @@ export function FeeSetterTab() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-4">
-                      <div className={`flex-1 ${!vault.isSet ? 'opacity-40' : 'opacity-100'} transition-opacity`}>
+                      <div className={`flex-1 space-y-2 ${!vault.isSet ? 'opacity-40' : 'opacity-100'} transition-opacity`}>
                         <Slider
                           value={[vault.feePercentage]}
                           onValueChange={(value) => handleSliderChange(vault.id, value)}
@@ -247,6 +247,27 @@ export function FeeSetterTab() {
                           step={0.01}
                           className="w-full"
                         />
+                        {/* Checkpoint indicators */}
+                        <div className="flex justify-between px-1">
+                          <button 
+                            onClick={() => handleSliderChange(vault.id, [0.25])}
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            0.25%
+                          </button>
+                          <button 
+                            onClick={() => handleSliderChange(vault.id, [0.50])}
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            0.50%
+                          </button>
+                          <button 
+                            onClick={() => handleSliderChange(vault.id, [0.75])}
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            0.75%
+                          </button>
+                        </div>
                       </div>
                       <span className="text-sm font-medium min-w-[60px] text-center">
                         {vault.feePercentage.toFixed(2)}%

@@ -16,6 +16,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { Shield, Wallet, ChevronDown, TrendingUp, TrendingDown, Info, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import daiLogo from "@/assets/tokens/dai.png";
+import usdcLogo from "@/assets/tokens/usdc.png";
+import usdtLogo from "@/assets/tokens/usdt.png";
+import wethLogo from "@/assets/tokens/weth.png";
 
 // Reserve Tab Component
 
@@ -92,6 +96,7 @@ interface CreditLineData {
   delegated: number;
   borrowed_quantity: number;
   available_credit_percent: number;
+  available_credit_quantity: number;
   interest_percent: number;
 }
 
@@ -177,6 +182,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
           const availableCredit = balance.total_slashable > 0 
             ? ((balance.total_slashable - balance.total_pre_slashed) / balance.total_slashable) * 100 
             : 0;
+          const availableQuantity = balance.total_slashable - balance.total_pre_slashed;
           
           return {
             id: balance.id,
@@ -186,6 +192,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
             delegated: delegation?.usd_value || 0,
             borrowed_quantity: balance.total_pre_slashed,
             available_credit_percent: availableCredit,
+            available_credit_quantity: availableQuantity,
             interest_percent: 0,
           };
         })
@@ -1034,9 +1041,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                     
                     {/* Available Credit */}
                     <TableCell className="text-right">
-                      <Badge variant={vault.available_credit_percent > 50 ? "default" : "destructive"}>
-                        {vault.available_credit_percent.toFixed(1)}%
-                      </Badge>
+                      {vault.available_credit_quantity.toLocaleString()} {vault.token}
                     </TableCell>
                     
                     {/* Interest */}
@@ -1255,11 +1260,17 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                       <TableRow key={token.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                              <span className="font-bold text-xs text-primary">
-                                {token.token_symbol.substring(0, 2)}
-                              </span>
-                            </div>
+                            <img 
+                              src={
+                                token.token_symbol.toLowerCase() === 'dai' ? daiLogo :
+                                token.token_symbol.toLowerCase() === 'usdc' ? usdcLogo :
+                                token.token_symbol.toLowerCase() === 'usdt' ? usdtLogo :
+                                token.token_symbol.toLowerCase() === 'weth' ? wethLogo :
+                                undefined
+                              }
+                              alt={token.token_symbol}
+                              className="h-8 w-8 rounded-full"
+                            />
                             {token.token_symbol}
                           </div>
                         </TableCell>
@@ -1302,11 +1313,17 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                       <TableRow key={token.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                              <span className="font-bold text-xs text-primary">
-                                {token.token_symbol.substring(0, 2)}
-                              </span>
-                            </div>
+                            <img 
+                              src={
+                                token.token_symbol.toLowerCase() === 'dai' ? daiLogo :
+                                token.token_symbol.toLowerCase() === 'usdc' ? usdcLogo :
+                                token.token_symbol.toLowerCase() === 'usdt' ? usdtLogo :
+                                token.token_symbol.toLowerCase() === 'weth' ? wethLogo :
+                                undefined
+                              }
+                              alt={token.token_symbol}
+                              className="h-8 w-8 rounded-full"
+                            />
                             {token.token_symbol}
                           </div>
                         </TableCell>
@@ -1408,7 +1425,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                 </Select>
               </div>
 
-              {/* Liquidity Source and Slippage */}
+              {/* Liquidity Source and Slippage
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="liquidity-source-restore">Liquidity Source</Label>
@@ -1436,7 +1453,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                     className="bg-background text-foreground"
                   />
                 </div>
-              </div>
+              </div> */}
 
               {/* Amount Input */}
               <div className="space-y-2">
@@ -1547,7 +1564,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
 
           <DialogFooter>
             <Button onClick={handleRestoreSubmit}>
-              Confirm Restore
+              Restore
             </Button>
           </DialogFooter>
         </DialogContent>
