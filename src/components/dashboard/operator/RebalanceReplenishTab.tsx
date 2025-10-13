@@ -456,7 +456,7 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
       }
     });
     
-    return total.toFixed(6);
+    return total.toFixed(2);
   };
 
   const handleReplenishSubmit = () => {
@@ -983,14 +983,31 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
                 
                 <div className="space-y-2">
                   <Label htmlFor="restore-amount" className="text-blue-700">Amount to Restore</Label>
-                  <Input
-                    id="restore-amount"
-                    type="number"
-                    placeholder="0.00"
-                    value={restoreAmount}
-                    onChange={(e) => setRestoreAmount(e.target.value)}
-                    className="border-blue-300 focus:border-blue-500 text-foreground"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="restore-amount"
+                      type="number"
+                      placeholder="0.00"
+                      value={restoreAmount}
+                      onChange={(e) => setRestoreAmount(e.target.value)}
+                      className="border-blue-300 focus:border-blue-500 text-foreground"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (!selectedVault) return;
+                        const vaultToken = escrowTokens?.find(t => t.token_symbol === selectedVault.maker_token);
+                        if (!vaultToken) return;
+                        const deficit = Math.max(0, selectedVault.total_pre_slashed - selectedVault.orchestrator_balance);
+                        const maxAmount = Math.min(vaultToken.amount, deficit);
+                        setRestoreAmount(maxAmount.toFixed(6));
+                      }}
+                      className="shrink-0"
+                    >
+                      Max
+                    </Button>
+                  </div>
                   <p className="text-xs text-blue-600">
                     Available: {(() => {
                       const vaultToken = escrowTokens?.find(t => t.token_symbol === selectedVault?.maker_token);
@@ -1003,129 +1020,153 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
 
             {/* Tabbed Token Selection */}
             <div className="space-y-3">
-              <Label>Replenish Using Tokens (Multi-select)</Label>
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'unlisted' | 'listed')}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger 
-                    value="unlisted" 
-                    className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 data-[state=active]:border-orange-500 data-[state=inactive]:text-gray-700"
-                  >
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Unlisted
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="listed"
-                    className="data-[state=active]:bg-green-100 data-[state=active]:text-green-700 data-[state=active]:border-green-500 data-[state=inactive]:text-gray-700"
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Listed
-                  </TabsTrigger>
-                </TabsList>
+              {(() => {
+                const deficitFullyCovered = (() => {
+                  if (!selectedVault || !restoreAmount) return false;
+                  const restoreAmountNum = parseFloat(restoreAmount);
+                  if (isNaN(restoreAmountNum) || restoreAmountNum <= 0) return false;
+                  const deficit = Math.max(0, selectedVault.total_pre_slashed - selectedVault.orchestrator_balance);
+                  return restoreAmountNum >= deficit;
+                })();
 
-                <TabsContent value="unlisted" className="mt-3">
-                  <div className="space-y-3 border border-orange-200 rounded-lg p-3 max-h-96 overflow-y-auto bg-orange-50/30">
-                    {escrowTokens?.filter(token => !token.isListed).map((token) => (
-                      <div key={token.token_symbol} className="space-y-2">
-                        <div className="flex items-center space-x-3 py-2">
-                          <Checkbox
-                            id={`token-${token.token_symbol}`}
-                            checked={selectedTokens.includes(token.token_symbol)}
-                            onCheckedChange={() => handleTokenToggle(token.token_symbol)}
-                            className="border-orange-400 data-[state=checked]:bg-orange-500"
-                          />
-                          <label
-                            htmlFor={`token-${token.token_symbol}`}
-                            className="flex-1 flex justify-between items-center cursor-pointer"
+                return (
+                  <>
+                    {deficitFullyCovered && (
+                      <div className="p-2 bg-green-50 border border-green-200 rounded-md">
+                        <p className="text-xs text-green-700 flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Orchestrator deficit is fully covered by restore funds. Additional tokens not needed.
+                        </p>
+                      </div>
+                    )}
+                    <div className={deficitFullyCovered ? 'opacity-50 pointer-events-none' : ''}>
+                      <Label>Replenish Using Tokens (Multi-select)</Label>
+                      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'unlisted' | 'listed')}>
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger 
+                            value="unlisted" 
+                            className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 data-[state=active]:border-orange-500 data-[state=inactive]:text-gray-700"
                           >
-                            <span className="font-medium">{token.token_symbol}</span>
-                            <span className="text-xs text-muted-foreground">
-                              Balance: {token.amount.toLocaleString()} {token.token_symbol}
-                            </span>
-                          </label>
-                        </div>
-                        
-                        {selectedTokens.includes(token.token_symbol) && (
-                          <div className="ml-9 space-y-1">
-                            <Input
-                              type="number"
-                              placeholder={`Enter ${token.token_symbol} amount`}
-                              value={tokenAmounts[token.token_symbol] || ''}
-                              onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
-                              step="0.000001"
-                              min="0"
-                              max={token.amount}
-                              className="w-full border-orange-300 focus:ring-orange-500 text-foreground"
-                            />
-                            {tokenAmounts[token.token_symbol] && parseFloat(tokenAmounts[token.token_symbol]) > 0 && selectedVault && (
-                              <p className="text-xs text-orange-600">
-                                ≈ {calculateConversion(token.token_symbol, tokenAmounts[token.token_symbol], selectedVault.maker_token)} {selectedVault.maker_token}
-                              </p>
+                            <AlertCircle className="h-4 w-4 mr-2" />
+                            Unlisted
+                          </TabsTrigger>
+                          <TabsTrigger 
+                            value="listed"
+                            className="data-[state=active]:bg-green-100 data-[state=active]:text-green-700 data-[state=active]:border-green-500 data-[state=inactive]:text-gray-700"
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Listed
+                          </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="unlisted" className="mt-3">
+                          <div className="space-y-3 border border-orange-200 rounded-lg p-3 max-h-96 overflow-y-auto bg-orange-50/30">
+                            {escrowTokens?.filter(token => !token.isListed).map((token) => (
+                              <div key={token.token_symbol} className="space-y-2">
+                                <div className="flex items-center space-x-3 py-2">
+                                  <Checkbox
+                                    id={`token-${token.token_symbol}`}
+                                    checked={selectedTokens.includes(token.token_symbol)}
+                                    onCheckedChange={() => handleTokenToggle(token.token_symbol)}
+                                    className="border-orange-400 data-[state=checked]:bg-orange-500"
+                                  />
+                                  <label
+                                    htmlFor={`token-${token.token_symbol}`}
+                                    className="flex-1 flex justify-between items-center cursor-pointer"
+                                  >
+                                    <span className="font-medium">{token.token_symbol}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      Balance: {token.amount.toLocaleString()} {token.token_symbol}
+                                    </span>
+                                  </label>
+                                </div>
+                                
+                                {selectedTokens.includes(token.token_symbol) && (
+                                  <div className="ml-9 space-y-1">
+                                    <Input
+                                      type="number"
+                                      placeholder={`Enter ${token.token_symbol} amount`}
+                                      value={tokenAmounts[token.token_symbol] || ''}
+                                      onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
+                                      step="0.000001"
+                                      min="0"
+                                      max={token.amount}
+                                      className="w-full border-orange-300 focus:ring-orange-500 text-foreground"
+                                    />
+                                    {tokenAmounts[token.token_symbol] && parseFloat(tokenAmounts[token.token_symbol]) > 0 && selectedVault && (
+                                      <p className="text-xs text-orange-600">
+                                        ≈ {calculateConversion(token.token_symbol, tokenAmounts[token.token_symbol], selectedVault.maker_token)} {selectedVault.maker_token}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {escrowTokens?.filter(token => !token.isListed).length === 0 && (
+                              <p className="text-sm text-muted-foreground text-center py-4">No unlisted tokens available</p>
                             )}
                           </div>
-                        )}
-                      </div>
-                    ))}
-                    {escrowTokens?.filter(token => !token.isListed).length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">No unlisted tokens available</p>
-                    )}
-                  </div>
-                </TabsContent>
+                        </TabsContent>
 
-                <TabsContent value="listed" className="mt-3">
-                  <div className="space-y-3 border border-green-200 rounded-lg p-3 max-h-96 overflow-y-auto bg-green-50/30">
-                    {escrowTokens?.filter(token => token.isListed && token.token_symbol !== selectedVault?.maker_token).map((token) => (
-                      <div key={token.token_symbol} className="space-y-2">
-                        <div className="flex items-center space-x-3 py-2">
-                          <Checkbox
-                            id={`token-${token.token_symbol}`}
-                            checked={selectedTokens.includes(token.token_symbol)}
-                            onCheckedChange={() => handleTokenToggle(token.token_symbol)}
-                            className="border-green-400 data-[state=checked]:bg-green-500"
-                          />
-                          <label
-                            htmlFor={`token-${token.token_symbol}`}
-                            className="flex-1 flex justify-between items-center cursor-pointer"
-                          >
-                            <span className="font-medium">{token.token_symbol}</span>
-                            <span className="text-xs text-muted-foreground">
-                              Balance: {token.amount.toLocaleString()} {token.token_symbol}
-                            </span>
-                          </label>
-                        </div>
-                        
-                        {selectedTokens.includes(token.token_symbol) && (
-                          <div className="ml-9 space-y-1">
-                            <Input
-                              type="number"
-                              placeholder={`Enter ${token.token_symbol} amount`}
-                              value={tokenAmounts[token.token_symbol] || ''}
-                              onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
-                              step="0.000001"
-                              min="0"
-                              max={token.amount}
-                              className="w-full border-green-300 focus:ring-green-500 text-foreground"
-                            />
-                            {tokenAmounts[token.token_symbol] && parseFloat(tokenAmounts[token.token_symbol]) > 0 && selectedVault && (
-                              <p className="text-xs text-green-600">
-                                ≈ {calculateConversion(token.token_symbol, tokenAmounts[token.token_symbol], selectedVault.maker_token)} {selectedVault.maker_token}
-                              </p>
+                        <TabsContent value="listed" className="mt-3">
+                          <div className="space-y-3 border border-green-200 rounded-lg p-3 max-h-96 overflow-y-auto bg-green-50/30">
+                            {escrowTokens?.filter(token => token.isListed && token.token_symbol !== selectedVault?.maker_token).map((token) => (
+                              <div key={token.token_symbol} className="space-y-2">
+                                <div className="flex items-center space-x-3 py-2">
+                                  <Checkbox
+                                    id={`token-${token.token_symbol}`}
+                                    checked={selectedTokens.includes(token.token_symbol)}
+                                    onCheckedChange={() => handleTokenToggle(token.token_symbol)}
+                                    className="border-green-400 data-[state=checked]:bg-green-500"
+                                  />
+                                  <label
+                                    htmlFor={`token-${token.token_symbol}`}
+                                    className="flex-1 flex justify-between items-center cursor-pointer"
+                                  >
+                                    <span className="font-medium">{token.token_symbol}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      Balance: {token.amount.toLocaleString()} {token.token_symbol}
+                                    </span>
+                                  </label>
+                                </div>
+                                
+                                {selectedTokens.includes(token.token_symbol) && (
+                                  <div className="ml-9 space-y-1">
+                                    <Input
+                                      type="number"
+                                      placeholder={`Enter ${token.token_symbol} amount`}
+                                      value={tokenAmounts[token.token_symbol] || ''}
+                                      onChange={(e) => handleAmountChange(token.token_symbol, e.target.value)}
+                                      step="0.000001"
+                                      min="0"
+                                      max={token.amount}
+                                      className="w-full border-green-300 focus:ring-green-500 text-foreground"
+                                    />
+                                    {tokenAmounts[token.token_symbol] && parseFloat(tokenAmounts[token.token_symbol]) > 0 && selectedVault && (
+                                      <p className="text-xs text-green-600">
+                                        ≈ {calculateConversion(token.token_symbol, tokenAmounts[token.token_symbol], selectedVault.maker_token)} {selectedVault.maker_token}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {escrowTokens?.filter(token => token.isListed && token.token_symbol !== selectedVault?.maker_token).length === 0 && (
+                              <p className="text-sm text-muted-foreground text-center py-4">No listed tokens available</p>
                             )}
                           </div>
-                        )}
-                      </div>
-                    ))}
-                    {escrowTokens?.filter(token => token.isListed && token.token_symbol !== selectedVault?.maker_token).length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">No listed tokens available</p>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
+                        </TabsContent>
+                      </Tabs>
 
-              {selectedTokens.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Selected: {selectedTokens.join(', ')}
-                </p>
-              )}
+                      {selectedTokens.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Selected: {selectedTokens.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             {/* Total Amount Display */}
@@ -1138,15 +1179,32 @@ export function RebalanceReplenishTab({ vaultTimers, setVaultTimers, sharedVault
 
           </div>
 
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setReplenishDialogOpen(false)}>
-              Cancel
-            </Button>
+          <DialogFooter className="flex w-full justify-between items-center gap-4">
             <Button 
               onClick={handleReplenishSubmit}
               disabled={selectedTokens.length === 0 && !restoreAmount}
+              className="mr-auto"
             >
-              Confirm Replenish
+              Replenish
+            </Button>
+            <Button 
+              onClick={() => {
+                if (selectedVault) {
+                  // Find the corresponding VaultRebalance from the vaults array
+                  const matchingVault = vaults.find(v => 
+                    v.maker_token === selectedVault.maker_token &&
+                    `${v.curator_name}: ${v.maker_token} Vault` === selectedVault.vault_name
+                  );
+                  
+                  if (matchingVault) {
+                    setReplenishDialogOpen(false);
+                    handleRebalance(matchingVault);
+                  }
+                }
+              }}
+              className="ml-auto"
+            >
+              Rebalance
             </Button>
           </DialogFooter>
         </DialogContent>

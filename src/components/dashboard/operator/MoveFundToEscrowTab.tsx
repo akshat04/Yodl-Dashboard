@@ -18,6 +18,7 @@ interface TradeSettlement {
   token: string;
   quantity: number;
   fee: number;
+  numberOfTrades: number;
   transaction_hash: string | null;
   status: 'pending' | 'completed';
   created_at: string;
@@ -50,23 +51,23 @@ export function MoveFundToEscrowTab() {
         .limit(10);
 
       const mockTradeSettlements: TradeSettlement[] = [
-        { id: '1', token: 'USDC', quantity: 10000, fee: 50, transaction_hash: null, status: 'pending', created_at: new Date().toISOString() },
-        { id: '2', token: 'WETH', quantity: 5.5, fee: 0.025, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 3600000).toISOString() },
-        { id: '3', token: 'DAI', quantity: 7500, fee: 37.5, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 7200000).toISOString() },
-        { id: '4', token: 'USDT', quantity: 8200, fee: 41, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 10800000).toISOString() },
-        { id: '5', token: 'USDC', quantity: 15000, fee: 75, transaction_hash: '0xabc123def456789012345678901234567890abcd', status: 'completed', created_at: new Date(Date.now() - 86400000).toISOString() },
-        { id: '6', token: 'WETH', quantity: 3.2, fee: 0.016, transaction_hash: '0xdef456789012345678901234567890abcdef1234', status: 'completed', created_at: new Date(Date.now() - 172800000).toISOString() },
-        { id: '7', token: 'DAI', quantity: 12000, fee: 60, transaction_hash: '0x789012345678901234567890abcdef123456789a', status: 'completed', created_at: new Date(Date.now() - 259200000).toISOString() }
+        { id: '1', token: 'USDC', quantity: 10000, fee: 50, numberOfTrades: 12, transaction_hash: null, status: 'pending', created_at: new Date().toISOString() },
+        { id: '2', token: 'WETH', quantity: 5.5, fee: 0.025, numberOfTrades: 8, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 3600000).toISOString() },
+        { id: '3', token: 'DAI', quantity: 7500, fee: 37.5, numberOfTrades: 15, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 7200000).toISOString() },
+        { id: '4', token: 'USDT', quantity: 8200, fee: 41, numberOfTrades: 10, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 10800000).toISOString() },
+        { id: '5', token: 'USDC', quantity: 15000, fee: 75, numberOfTrades: 20, transaction_hash: '0xabc123def456789012345678901234567890abcd', status: 'completed', created_at: new Date(Date.now() - 86400000).toISOString() },
+        { id: '6', token: 'WETH', quantity: 3.2, fee: 0.016, numberOfTrades: 5, transaction_hash: '0xdef456789012345678901234567890abcdef1234', status: 'completed', created_at: new Date(Date.now() - 172800000).toISOString() },
+        { id: '7', token: 'DAI', quantity: 12000, fee: 60, numberOfTrades: 18, transaction_hash: '0x789012345678901234567890abcdef123456789a', status: 'completed', created_at: new Date(Date.now() - 259200000).toISOString() }
       ];
 
       setTradeSettlements(mockTradeSettlements);
     } catch (error) {
       console.error('Error fetching trade settlements:', error);
       setTradeSettlements([
-        { id: '1', token: 'USDC', quantity: 10000, fee: 50, transaction_hash: null, status: 'pending', created_at: new Date().toISOString() },
-        { id: '2', token: 'WETH', quantity: 5.5, fee: 0.025, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 3600000).toISOString() },
-        { id: '3', token: 'DAI', quantity: 7500, fee: 37.5, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 7200000).toISOString() },
-        { id: '4', token: 'USDT', quantity: 8200, fee: 41, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 10800000).toISOString() }
+        { id: '1', token: 'USDC', quantity: 10000, fee: 50, numberOfTrades: 12, transaction_hash: null, status: 'pending', created_at: new Date().toISOString() },
+        { id: '2', token: 'WETH', quantity: 5.5, fee: 0.025, numberOfTrades: 8, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 3600000).toISOString() },
+        { id: '3', token: 'DAI', quantity: 7500, fee: 37.5, numberOfTrades: 15, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 7200000).toISOString() },
+        { id: '4', token: 'USDT', quantity: 8200, fee: 41, numberOfTrades: 10, transaction_hash: null, status: 'pending', created_at: new Date(Date.now() - 10800000).toISOString() }
       ]);
     } finally {
       setLoading(false);
@@ -171,6 +172,7 @@ export function MoveFundToEscrowTab() {
                       />
                     </TableHead>
                     <TableHead>Token</TableHead>
+                    <TableHead className="text-right">No. of Trades</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead className="text-right">Fee</TableHead>
                     <TableHead className="text-right">Action</TableHead>
@@ -179,7 +181,7 @@ export function MoveFundToEscrowTab() {
                 <TableBody>
                   {pendingTransactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                         No pending transactions
                       </TableCell>
                     </TableRow>
@@ -198,8 +200,10 @@ export function MoveFundToEscrowTab() {
                             {trade.token}
                           </div>
                         </TableCell>
+                        <TableCell className="text-right">{trade.numberOfTrades}</TableCell>
                         <TableCell className="text-right">{trade.quantity.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{trade.fee.toLocaleString()}</TableCell>
+
                         <TableCell className="text-right">
                           <Button size="sm" onClick={() => handleExecuteSingle(trade.id)}>
                             Execute
@@ -235,15 +239,17 @@ export function MoveFundToEscrowTab() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Token</TableHead>
+                    <TableHead className="text-right">No. of Trades</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead className="text-right">Fee</TableHead>
+                    
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {completedTransactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         No completed transactions
                       </TableCell>
                     </TableRow>
@@ -256,8 +262,10 @@ export function MoveFundToEscrowTab() {
                             {trade.token}
                           </div>
                         </TableCell>
+                        <TableCell className="text-right">{trade.numberOfTrades}</TableCell>
                         <TableCell className="text-right">{trade.quantity.toLocaleString()}</TableCell>
                         <TableCell className="text-right">{trade.fee.toLocaleString()}</TableCell>
+                        
                         <TableCell className="text-right">
                           <Button 
                             size="sm" 
