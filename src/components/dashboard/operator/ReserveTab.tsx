@@ -118,6 +118,8 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
   const [swapAmount, setSwapAmount] = useState("");
   const [liquiditySourceRestore, setLiquiditySourceRestore] = useState<string>("uniswap");
   const [liquiditySourceSwap, setLiquiditySourceSwap] = useState<string>("uniswap");
+  const [slippageRestore, setSlippageRestore] = useState<string>("0.5");
+  const [slippageSwap, setSlippageSwap] = useState<string>("0.5");
   const [sortColumn, setSortColumn] = useState<'available_credit' | 'interest' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const { toast } = useToast();
@@ -914,7 +916,6 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
         <CardContent className="space-y-4">
           {/* Total Slashed Card */}
           <div className="p-6 bg-primary/10 rounded-lg space-y-4">
-            <h3 className="text-lg font-semibold mb-4">Total Slashed</h3>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {/* a. Total USD value of Pre-slashed */}
@@ -936,35 +937,29 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                   {totalSlashableUsd > 0 ? (((totalSlashableUsd - totalPreSlashedUsd) / totalSlashableUsd) * 100).toFixed(1) : 0}%
                 </p>
               </div>
-              
-              {/* d. Amount Available (USD) for Loan */}
-              <div>
-                <p className="text-xs text-muted-foreground">Available for Loan</p>
-                <p className="text-xl font-bold">${(totalSlashableUsd - totalPreSlashedUsd).toLocaleString()}</p>
-              </div>
-              
-              {/* e. YODL required */}
-              <div>
-                <p className="text-xs text-muted-foreground">YODL Required</p>
-                <p className="text-xl font-bold">100,000 YODL</p>
-              </div>
-              
-              {/* f. YODL staked */}
+
+              {/* d. YODL staked */}
               <div>
                 <p className="text-xs text-muted-foreground">YODL Staked</p>
                 <p className="text-xl font-bold">{totalYodlStaked.toLocaleString()} YODL</p>
               </div>
               
-              {/* g. Execution multiplier */}
+              {/* e. Amount Available (USD) for Loan */}
+              <div>
+                <p className="text-xs text-muted-foreground">Available for Borrowing</p>
+                <p className="text-xl font-bold">${(totalSlashableUsd - totalPreSlashedUsd).toLocaleString()}</p>
+              </div>
+
+              {/* f. Execution multiplier */}
               <div>
                 <p className="text-xs text-muted-foreground">Execution Multiplier</p>
                 <p className="text-xl font-bold">2.5x</p>
               </div>
               
-              {/* h. Buy and Stake button */}
+              {/* g. Buy and Stake button */}
               <div className="flex items-end">
                 <Button className="w-full" onClick={handleBuyAndStake}>
-                  Buy and Stake
+                  Buy and Stake YODL
                 </Button>
               </div>
             </div>
@@ -985,7 +980,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
 
           {/* Credit Line Table */}
           <div className="space-y-3">
-            <h3 className="text-lg font-semibold">Credit Line</h3>
+            <h3 className="text-lg font-semibold">Credit Line Available</h3>
             
             <Table>
               <TableHeader>
@@ -998,14 +993,14 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                     className="text-right cursor-pointer hover:bg-muted/50 select-none"
                     onClick={() => handleSort('available_credit')}
                   >
-                    Available Credit
+                    Available Quantity
                     {renderSortIcon('available_credit')}
                   </TableHead>
                   <TableHead 
                     className="text-right cursor-pointer hover:bg-muted/50 select-none"
                     onClick={() => handleSort('interest')}
                   >
-                    Interest
+                    Fee %
                     {renderSortIcon('interest')}
                   </TableHead>
                   <TableHead className="text-center">Action</TableHead>
@@ -1345,7 +1340,7 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
 
       {/* Restore Dialog */}
       <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Restore Funds to Vault</DialogTitle>
             <DialogDescription>
@@ -1380,42 +1375,67 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                     <SelectValue placeholder="Choose a vault" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover text-popover-foreground">
-                    {yodlBalances.map((vault) => {
-                      const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
-                      const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
-                      if (!vaultData) return null;
-                      
-                      const tokenPrice = TOKEN_PRICES[selectedToken.token_symbol] || 1;
-                      const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
-                      const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
-                      const availableCapacityUsd = availableCapacity * vaultTokenPrice;
-                      
-                      return (
-                        <SelectItem key={vault.id} value={vault.id} className="text-foreground">
-                          <div className="flex flex-col">
-                            <span>{vaultDisplayName}</span>
-                            <span className="text-xs text-foreground">
-                              Available capacity: {availableCapacity.toLocaleString()} {vault.maker_token} (${availableCapacityUsd.toLocaleString()})
-                            </span>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
+                    {yodlBalances
+                      .filter((vault) => {
+                        const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
+                        const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
+                        if (!vaultData) return false;
+                        const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
+                        return availableCapacity > 0 && vault.maker_token === selectedToken.token_symbol;
+                      })
+                      .map((vault) => {
+                        const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
+                        const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
+                        if (!vaultData) return null;
+                        
+                        const tokenPrice = TOKEN_PRICES[selectedToken.token_symbol] || 1;
+                        const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+                        const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
+                        const availableCapacityUsd = availableCapacity * vaultTokenPrice;
+                        
+                        return (
+                          <SelectItem key={vault.id} value={vault.id} className="text-foreground">
+                            <div className="flex flex-col">
+                              <span>{vaultDisplayName}</span>
+                              <span className="text-xs text-foreground">
+                                Available capacity: {availableCapacity.toLocaleString()} {vault.maker_token} (${availableCapacityUsd.toLocaleString()})
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Liquidity Source */}
-              <div className="space-y-2">
-                <Label htmlFor="liquidity-source-restore">Liquidity Source</Label>
-                <Select value={liquiditySourceRestore} onValueChange={setLiquiditySourceRestore}>
-                  <SelectTrigger id="liquidity-source-restore" className="bg-background text-foreground">
-                    <SelectValue placeholder="Select liquidity source" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover text-popover-foreground">
-                    <SelectItem value="uniswap" className="text-foreground">Uniswap</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Liquidity Source and Slippage */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="liquidity-source-restore">Liquidity Source</Label>
+                  <Select value={liquiditySourceRestore} onValueChange={setLiquiditySourceRestore}>
+                    <SelectTrigger id="liquidity-source-restore" className="bg-background text-foreground">
+                      <SelectValue placeholder="Select liquidity source" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover text-popover-foreground">
+                      <SelectItem value="uniswap" className="text-foreground">Uniswap</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="slippage-restore">Slippage (%)</Label>
+                  <Input
+                    id="slippage-restore"
+                    type="number"
+                    placeholder="0.5"
+                    value={slippageRestore}
+                    onChange={(e) => setSlippageRestore(e.target.value)}
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    className="bg-background text-foreground"
+                  />
+                </div>
               </div>
 
               {/* Amount Input */}
@@ -1526,9 +1546,6 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>
-              Cancel
-            </Button>
             <Button onClick={handleRestoreSubmit}>
               Confirm Restore
             </Button>
@@ -1573,41 +1590,66 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
                     <SelectValue placeholder="Choose a vault" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover text-popover-foreground">
-                    {yodlBalances.map((vault) => {
-                      const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
-                      const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
-                      if (!vaultData) return null;
-                      
-                      const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
-                      const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
-                      const availableCapacityUsd = availableCapacity * vaultTokenPrice;
-                      
-                      return (
-                        <SelectItem key={vault.id} value={vault.id} className="text-foreground">
-                          <div className="flex flex-col">
-                            <span>{vaultDisplayName}</span>
-                            <span className="text-xs text-foreground">
-                              Available capacity: {availableCapacity.toLocaleString()} {vault.maker_token} (${availableCapacityUsd.toLocaleString()})
-                            </span>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
+                    {yodlBalances
+                      .filter((vault) => {
+                        const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
+                        const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
+                        if (!vaultData) return false;
+                        const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
+                        return availableCapacity > 0;
+                      })
+                      .map((vault) => {
+                        const vaultDisplayName = `${vault.curator_name}: ${vault.maker_token} Vault`;
+                        const vaultData = vaults.find(v => v.vault_name === vaultDisplayName);
+                        if (!vaultData) return null;
+                        
+                        const vaultTokenPrice = TOKEN_PRICES[vault.maker_token] || 1;
+                        const availableCapacity = vaultData.total_pre_slashed - vaultData.orchestrator_balance;
+                        const availableCapacityUsd = availableCapacity * vaultTokenPrice;
+                        
+                        return (
+                          <SelectItem key={vault.id} value={vault.id} className="text-foreground">
+                            <div className="flex flex-col">
+                              <span>{vaultDisplayName}</span>
+                              <span className="text-xs text-foreground">
+                                Available capacity: {availableCapacity.toLocaleString()} {vault.maker_token} (${availableCapacityUsd.toLocaleString()})
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Liquidity Source */}
-              <div className="space-y-2">
-                <Label htmlFor="liquidity-source-swap">Liquidity Source</Label>
-                <Select value={liquiditySourceSwap} onValueChange={setLiquiditySourceSwap}>
-                  <SelectTrigger id="liquidity-source-swap" className="bg-background text-foreground">
-                    <SelectValue placeholder="Select liquidity source" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover text-popover-foreground">
-                    <SelectItem value="uniswap" className="text-foreground">Uniswap</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Liquidity Source and Slippage */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="liquidity-source-swap">Liquidity Source</Label>
+                  <Select value={liquiditySourceSwap} onValueChange={setLiquiditySourceSwap}>
+                    <SelectTrigger id="liquidity-source-swap" className="bg-background text-foreground">
+                      <SelectValue placeholder="Select liquidity source" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover text-popover-foreground">
+                      <SelectItem value="uniswap" className="text-foreground">Uniswap</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="slippage-swap">Slippage (%)</Label>
+                  <Input
+                    id="slippage-swap"
+                    type="number"
+                    placeholder="0.5"
+                    value={slippageSwap}
+                    onChange={(e) => setSlippageSwap(e.target.value)}
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    className="bg-background text-foreground"
+                  />
+                </div>
               </div>
 
               {/* Amount Input */}
@@ -1718,9 +1760,6 @@ export function ReserveTab({ sharedVaults, onVaultsUpdate, escrowTokens: propEsc
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSwapDialogOpen(false)}>
-              Cancel
-            </Button>
             <Button onClick={handleSwapSubmit}>
               Confirm Swap & Restore
             </Button>
